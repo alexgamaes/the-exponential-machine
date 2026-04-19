@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Exponential Machine</title>
+  <style>html,body{background:#0d0d0d}</style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <header>
+      <span id="game-title">THE EXPONENTIAL MACHINE</span>
+      <span id="game-date"></span>
+    </header>
+
+    <div id="layout">
+
+      <div id="col-left">
+        <div id="resources"></div>
+        <div id="compute-section">
+          <button id="btn-compute">COMPUTE</button>
+          <div id="flops-rate"></div>
+        </div>
+        <div id="streams"></div>
+        <div id="personnel"></div>
+        <div id="infrastructure"></div>
+      </div>
+
+      <div id="col-right">
+        <div id="operations"></div>
+      </div>
+
+    </div>
+
+    <div id="footer">
+      <span id="system-specs"></span>
+    </div>
+
+    <div id="overlay" class="hidden">
+      <div id="overlay-box">
+        <div id="overlay-title"></div>
+        <div id="overlay-body"></div>
+        <button id="overlay-dismiss">CONTINUE</button>
+      </div>
+    </div>
+
+  </div>
+  <script type="module" src="src/core/game.js"></script>
+</body>
+</html>
