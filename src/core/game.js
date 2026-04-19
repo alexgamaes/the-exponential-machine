@@ -105,10 +105,10 @@ function bindEvents() {
     document.getElementById('overlay').classList.add('hidden');
   });
 
-  if (isDev) {
-    const btn = document.createElement('button');
-    btn.textContent = 'RESET';
-    btn.style.cssText = 'position:fixed;bottom:12px;right:12px;background:none;border:1px solid #333;color:#444;font-family:monospace;font-size:11px;padding:4px 10px;cursor:pointer;z-index:999';
+  const btn = document.getElementById('btn-reset');
+  if (!isDev) {
+    btn.style.display = 'none';
+  } else {
     btn.addEventListener('click', () => {
       if (btn.dataset.armed) {
         state = null; // prevent visibilitychange from re-saving
@@ -117,17 +117,16 @@ function bindEvents() {
       } else {
         btn.dataset.armed = '1';
         btn.textContent = 'CONFIRM RESET?';
-        btn.style.color = '#ff5a5a';
-        btn.style.borderColor = '#ff5a5a';
+        btn.style.color = 'var(--red)';
+        btn.style.borderColor = 'var(--red)';
         setTimeout(() => {
           btn.dataset.armed = '';
           btn.textContent = 'RESET';
-          btn.style.color = '#444';
-          btn.style.borderColor = '#333';
+          btn.style.color = '';
+          btn.style.borderColor = '';
         }, 3000);
       }
     });
-    document.body.appendChild(btn);
   }
 
   document.addEventListener('visibilitychange', () => {

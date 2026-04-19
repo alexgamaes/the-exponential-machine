@@ -62,6 +62,9 @@ export function executeOperation(state, opId) {
   state.operations.completed.push(opId);
   state.operations.available = state.operations.available.filter(id => id !== opId);
 
+  state.operations._completedTimestamps = state.operations._completedTimestamps || {};
+  state.operations._completedTimestamps[opId] = Date.now();
+
   // Reveal newly unlocked operations
   for (const nextId of (op.unlocks || [])) {
     if (

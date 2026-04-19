@@ -1,7 +1,7 @@
 :root {
   --bg:       #0d0d0d;
   --text:     #cccccc;
-  --dim:      #555555;
+  --dim:      #888888;
   --green:    #5aff5a;
   --gold:     #ffc107;
   --blue:     #5ab4ff;
@@ -50,7 +50,7 @@ header {
 /* ── Layout ── */
 #layout {
   display: grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 40px;
   align-items: start;
 }
@@ -60,6 +60,7 @@ header {
   margin-bottom: 16px;
   font-size: 13px;
   line-height: 2;
+  min-height: 78px;
 }
 
 .resource-line { color: var(--dim); }
@@ -81,8 +82,8 @@ header {
   margin-bottom: 6px;
 }
 
-#btn-compute:hover  { background: rgba(90,255,90,0.06); }
-#btn-compute:active { background: rgba(90,255,90,0.15); }
+#btn-compute:hover  { background: rgba(90,255,90,0.15); }
+#btn-compute:active { background: rgba(90,255,90,0.25); transform: scale(0.98); }
 
 #flops-rate {
   color: var(--dim);
@@ -184,11 +185,13 @@ header {
   border: 1px solid var(--border);
   margin-bottom: 8px;
   cursor: pointer;
+  transition: opacity 0.3s, transform 0.3s;
 }
 
 .op:hover { border-color: #444; background: #141414; }
 .op.unaffordable { opacity: 0.45; cursor: default; }
 .op.unaffordable:hover { border-color: var(--border); background: none; }
+.op.completing { opacity: 0.3; pointer-events: none; border-color: var(--green); transform: scale(0.98); }
 
 .op-name {
   font-size: 12px;
@@ -222,12 +225,26 @@ header {
 #footer {
   margin-top: 32px;
   border-top: 1px solid var(--border);
-  padding-top: 8px;
+  padding-top: 12px;
   font-size: 11px;
   color: var(--dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
 }
 
 #system-specs b { color: var(--green); }
+
+#btn-reset {
+  background: none;
+  border: 1px solid #333;
+  color: #888;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+#btn-reset:hover { border-color: var(--red); color: var(--red); }
 
 /* ── Overlay ── */
 #overlay {

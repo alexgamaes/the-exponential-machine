@@ -118,25 +118,50 @@ const TYPE_TAG = {
   crisis: 'CRISIS',
 };
 
+let _displayedOperations = [];
+
 function renderOperations(state) {
   const el = document.getElementById('operations');
   if (!state.ui.showOperations) { el.innerHTML = ''; return; }
 
   let html = `<div class="section-label">Operations</div>`;
 
-  for (const opId of state.operations.available) {
+  // Merge newly available
+  for (const id of state.operations.available) {
+    if (!_displayedOperations.includes(id)) {
+      _displayedOperations.push(id);
+    }
+  }
+
+  // Filter out removed ones unless recently completed
+  const now = Date.now();
+  _displayedOperations = _displayedOperations.filter(id => {
+    if (state.operations.available.includes(id)) return true;
+    const completedAt = state.operations._completedTimestamps?.[id];
+    return completedAt && (now - completedAt < 1500); // linger for 1.5s
+  });
+
+  for (const opId of _displayedOperations) {
     const op = OPERATIONS[opId];
     if (!op) continue;
 
+    const isCompleting = !state.operations.available.includes(opId);
     const cost = getOperationCost(state, opId);
     const { can } = canExecuteOperation(state, opId);
     const tag = TYPE_TAG[op.type] || op.type;
+    
+    let wrapClass = 'op';
+    if (isCompleting) {
+      wrapClass += ' completing';
+    } else if (!can) {
+      wrapClass += ' unaffordable';
+    }
 
     html += `
-      <div class="op${can ? '' : ' unaffordable'}" data-op-id="${opId}">
+      <div class="${wrapClass}" data-op-id="${opId}">
         <div class="op-name">
           <span class="op-type-tag tag-${op.type}">${tag}</span>
-          ${op.label}
+          ${isCompleting ? 'COMPLETED' : op.label}
         </div>
         <div class="op-flavor">${op.flavor}</div>
         <div class="op-cost">${formatCost(cost)}</div>
@@ -250,9 +275,9 @@ function handleDrop(state) {
   // Floating number near the stream bar
   const popup = document.createElement('div');
   popup.className = 'reward-popup';
-  popup.textContent = `+${fmt(state._lastDrop.reward)} Data`;
-  popup.style.left = '200px';
-  popup.style.top  = '200px';
+  popup.innerHTML = `<strong>CRACKED!</strong><br/>+${fmt(state._lastDrop.reward)} Data`;
+  popup.style.left = '40%';
+  popup.style.top  = '30vh';
   document.body.appendChild(popup);
   popup.addEventListener('animationend', () => popup.remove());
 }
