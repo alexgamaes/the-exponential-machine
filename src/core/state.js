@@ -55,7 +55,7 @@ export function createInitialState() {
 
     operations: {
       completed: [],
-      available: ['zygalskiSheets', 'formationHut6', 'formationHut8'], // shown only after first drop
+      available: [], // populated by refreshAvailableOperations on every tick
     },
 
     upgrades: {

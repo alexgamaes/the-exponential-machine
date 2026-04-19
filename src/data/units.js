@@ -49,7 +49,7 @@ export const INFRASTRUCTURE = {
     phase: 0,
     baseCost: 80,
     costScale: 1.5,
-    description: '+6 Calculator slots · +1 Section Head slot',
+    description: '+6 Supply Cap',
     maxCount: 10,
   },
 

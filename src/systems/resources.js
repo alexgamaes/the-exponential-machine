@@ -112,7 +112,7 @@ export function buyInfrastructure(state, infraId) {
 
   if (infraId === 'hut') {
     state.huts += 1;
-    // Huts increase supply cap implicitly via slot management
+    state.resources.supply.cap += 6;
   } else if (infraId === 'canteenExpansion') {
     const max = INFRASTRUCTURE.canteenExpansion.maxCount;
     if (state.upgrades.canteenExpansion < max) {

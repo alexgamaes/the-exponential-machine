@@ -2,12 +2,51 @@ import { OPERATIONS } from '../data/operations.js';
 import { log } from '../core/debug.js';
 import { pushLog } from '../core/log.js';
 
+// ── Trigger evaluation ────────────────────────────────────────────────────────
+//
+// Called every tick via refreshAvailableOperations. Returns true if all
+// conditions in the trigger are satisfied. All fields are optional; omitting
+// a field means that condition is not required.
+
+function triggerMet(trigger, state) {
+  const t = trigger || {};
+  const completed = state.operations.completed;
+
+  if (t.operations) {
+    for (const id of t.operations) {
+      if (!completed.includes(id)) return false;
+    }
+  }
+  if (t.minDrops              && state.stats.totalDrops                    < t.minDrops)              return false;
+  if (t.minJuniorCalculators  && state.personnel.juniorCalculator.count    < t.minJuniorCalculators)  return false;
+  if (t.minBoffins            && state.personnel.boffin.count              < t.minBoffins)            return false;
+  if (t.minHuts               && state.huts                                < t.minHuts)               return false;
+  if (t.minData               && state.resources.data                      < t.minData)               return false;
+
+  return true;
+}
+
+// Scans every operation and pushes any whose trigger is now satisfied into the
+// available pool. Called on load and every game tick.
+export function refreshAvailableOperations(state) {
+  const completed = new Set(state.operations.completed);
+  const available = new Set(state.operations.available);
+
+  for (const [id, op] of Object.entries(OPERATIONS)) {
+    if (completed.has(id) || available.has(id)) continue;
+    if (triggerMet(op.trigger, state)) available.add(id);
+  }
+
+  state.operations.available = [...available];
+}
+
+// ── Cost calculation ──────────────────────────────────────────────────────────
+
 export function getOperationCost(state, opId) {
   const op = OPERATIONS[opId];
   if (!op) return null;
 
   const baseMult = state.multipliers.operationCost;
-  // Algorithm ops get an extra discount from frequencyAnalysis
   const algoMult = op.type === 'algorithm' ? (state.flags.algorithmCostMult || 1) : 1;
 
   return {
@@ -16,33 +55,23 @@ export function getOperationCost(state, opId) {
   };
 }
 
+// ── Execution ─────────────────────────────────────────────────────────────────
+
 export function canExecuteOperation(state, opId) {
   const op = OPERATIONS[opId];
   if (!op) return { can: false, reason: 'Unknown operation' };
   if (state.operations.completed.includes(opId)) return { can: false, reason: 'Already completed' };
 
   const cost = getOperationCost(state, opId);
+  if (state.resources.data  < cost.data)  return { can: false, reason: `Need ${fmt(cost.data)} Data` };
+  if (state.resources.flops < cost.flops) return { can: false, reason: `Need ${fmt(cost.flops)} FLOPs` };
 
-  if (state.resources.data < cost.data)
-    return { can: false, reason: `Need ${fmt(cost.data)} Data` };
-  if (state.resources.flops < cost.flops)
-    return { can: false, reason: `Need ${fmt(cost.flops)} FLOPs` };
-
-  const req = op.requires || {};
-
-  if (req.operations) {
-    for (const depId of req.operations) {
-      if (!state.operations.completed.includes(depId)) {
-        return { can: false, reason: `Requires [${OPERATIONS[depId]?.label || depId}]` };
-      }
-    }
-  }
-  if (req.minBoffins && state.personnel.boffin.count < req.minBoffins)
-    return { can: false, reason: `Need ${req.minBoffins} Boffins` };
-  if (req.minHuts && state.huts < req.minHuts)
-    return { can: false, reason: `Need ${req.minHuts} Huts` };
-  if (req.minData && state.resources.data < req.minData)
-    return { can: false, reason: `Need ${fmt(req.minData)} Data stored` };
+  // Gates: visible but not yet executable (separate from trigger conditions)
+  const gates = op.gates || {};
+  if (gates.minBoffins && state.personnel.boffin.count < gates.minBoffins)
+    return { can: false, reason: `Need ${gates.minBoffins} Boffins` };
+  if (gates.minHuts && state.huts < gates.minHuts)
+    return { can: false, reason: `Need ${gates.minHuts} Huts` };
 
   return { can: true };
 }
@@ -60,7 +89,7 @@ export function executeOperation(state, opId) {
 
   op.effect(state);
 
-  if (op.result && !op.overlay) pushLog(`${op.label}: ${op.result.replace(/\n/g, ' · ')}`);
+  if (op.result && !op.overlay) pushLog(`${op.label}: ${op.result}`);
 
   state.operations.completed.push(opId);
   state.operations.available = state.operations.available.filter(id => id !== opId);
@@ -68,37 +97,15 @@ export function executeOperation(state, opId) {
   state.operations._completedTimestamps = state.operations._completedTimestamps || {};
   state.operations._completedTimestamps[opId] = Date.now();
 
-  // Reveal newly unlocked operations
-  for (const nextId of (op.unlocks || [])) {
-    if (
-      !state.operations.completed.includes(nextId) &&
-      !state.operations.available.includes(nextId)
-    ) {
-      state.operations.available.push(nextId);
-    }
-  }
+  // Completing a node may satisfy triggers on other nodes — re-scan immediately
+  refreshAvailableOperations(state);
 
-  // Only phase transitions still use the overlay
   if (op.overlay) state._pendingOverlay = op.overlay;
 
   return true;
 }
 
-export function refreshAvailableOperations(state) {
-  // Called on load — re-derive available from completed + unlock chains
-  const allCompleted = new Set(state.operations.completed);
-  const available = new Set(state.operations.available);
-
-  for (const completedId of allCompleted) {
-    const op = OPERATIONS[completedId];
-    if (!op) continue;
-    for (const nextId of (op.unlocks || [])) {
-      if (!allCompleted.has(nextId)) available.add(nextId);
-    }
-  }
-
-  state.operations.available = [...available];
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';

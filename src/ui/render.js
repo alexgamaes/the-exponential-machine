@@ -12,8 +12,9 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 export function updateUIFlags(state) {
   if (state.stats.totalDrops >= 1)                                  state.ui.showData = true;
   if (state.stats.totalDrops >= 1)                                  state.ui.showOperations = true;
-  if (state.operations.completed.includes('formationHut6'))         state.ui.showPersonnel = true;
-  if (state.operations.completed.includes('recruitFirst50'))        state.ui.showInfrastructure = true;
+  if (state.stats.totalDrops >= 1)                                  state.ui.showPersonnel = true;
+  if (state.personnel.juniorCalculator.count > 0 ||
+      state.personnel.boffin.count > 0)                             state.ui.showInfrastructure = true;
   if (state.operations.completed.includes('formationHut8'))         state.ui.showNavalStream = true;
   if (state.personnel.juniorCalculator.count > 0 ||
       state.personnel.boffin.count > 0)                             state.ui.showFooter = true;
@@ -57,7 +58,7 @@ function renderResources(state) {
           + `<span class="rate"> / ${fmt(state.resources.dataCap)}</span></div>`;
 
     const s = state.resources.supply;
-    html += `<div class="resource-line">Supply &nbsp;<b>${s.used} / ${s.cap}</b></div>`;
+    html += `<div class="resource-line">Billets <b>${s.used} / ${s.cap}</b></div>`;
   }
 
   el.innerHTML = html;
@@ -206,7 +207,7 @@ function unitRow(state, unitId, supplyFree) {
     <div class="unit">
       <div>
         <div class="unit-name">${unit.label}</div>
-        <div class="unit-meta">${unit.description} · ${unit.supplyPerUnit} Supply · ${fmt(cost)} Data</div>
+        <div class="unit-meta">${unit.description} · ${unit.supplyPerUnit} Billets · ${fmt(cost)} Data</div>
       </div>
       <span class="unit-count">${su.count}</span>
       <button class="btn-buy" data-buy-unit="${unitId}" ${canBuy ? '' : 'disabled'}>BUY</button>

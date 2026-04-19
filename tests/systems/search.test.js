@@ -5,12 +5,13 @@ import { tickSearch, handleComputeClick } from '../../src/systems/search.js';
 
 describe('systems/search', () => {
 
-  test('handleComputeClick increments flops and stats', () => {
+  test('handleComputeClick increments flops and stats by flopsPerClick', () => {
     const state = createInitialState();
+    const clickValue = state.multipliers.flopsPerClick;
     handleComputeClick(state);
-    assert.equal(state.resources.flops, 1);
-    assert.equal(state.stats.totalFlops, 1);
-    assert.equal(state._pendingClickFlops, 1);
+    assert.equal(state.resources.flops, clickValue);
+    assert.equal(state.stats.totalFlops, clickValue);
+    assert.equal(state._pendingClickFlops, clickValue);
   });
 
   test('tickSearch consumes pending click flops', () => {
@@ -45,8 +46,8 @@ describe('systems/search', () => {
     assert.equal(state.stats.totalData, 100);
     assert.equal(state.stats.totalDrops, 1);
     
-    // next space: 300 * 1.35^1 = 405
-    assert.equal(state.streams.armyEnigma.spaceCurrent, 405);
+    // next space: spaceBase(300) * DROP_SCALE(1.08)^dropCount(1) = 324
+    assert.equal(state.streams.armyEnigma.spaceCurrent, 324);
     assert.ok(state._lastDrop);
   });
 

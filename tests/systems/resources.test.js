@@ -156,6 +156,15 @@ describe('systems/resources', () => {
       assert.equal(getInfrastructureCost(state, 'hut'), 120);
     });
 
+    test('buyInfrastructure for hut increases supply cap by 6', () => {
+      const state = createInitialState();
+      state.resources.data = 1000;
+      const capBefore = state.resources.supply.cap;
+      buyInfrastructure(state, 'hut');
+      assert.equal(state.huts, 1);
+      assert.equal(state.resources.supply.cap, capBefore + 6);
+    });
+
     test('buyInfrastructure for canteenExpansion increases supply cap', () => {
       const state = createInitialState();
       state.resources.data = 1000;

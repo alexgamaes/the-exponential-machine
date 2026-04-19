@@ -55,6 +55,7 @@ function tick(timestamp) {
   tickResources(state, delta);
   tickSearch(state, delta);
   tickDate(state, delta);
+  refreshAvailableOperations(state);
   updateUIFlags(state);
 
   saveTimer += delta;
