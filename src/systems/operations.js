@@ -1,5 +1,6 @@
 import { OPERATIONS } from '../data/operations.js';
 import { log } from '../core/debug.js';
+import { pushLog } from '../core/log.js';
 
 export function getOperationCost(state, opId) {
   const op = OPERATIONS[opId];
@@ -59,6 +60,8 @@ export function executeOperation(state, opId) {
 
   op.effect(state);
 
+  if (op.result && !op.overlay) pushLog(`${op.label}: ${op.result.replace(/\n/g, ' · ')}`);
+
   state.operations.completed.push(opId);
   state.operations.available = state.operations.available.filter(id => id !== opId);
 
@@ -75,10 +78,8 @@ export function executeOperation(state, opId) {
     }
   }
 
-  // Signal overlay if needed
-  if (op.overlay) {
-    state._pendingOverlay = op.overlay;
-  }
+  // Only phase transitions still use the overlay
+  if (op.overlay) state._pendingOverlay = op.overlay;
 
   return true;
 }

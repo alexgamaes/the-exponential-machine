@@ -2,6 +2,8 @@ import { OPERATIONS } from '../data/operations.js';
 import { UNITS, INFRASTRUCTURE } from '../data/units.js';
 import { getUnitCost, canAffordUnit, getInfrastructureCost } from '../systems/resources.js';
 import { getOperationCost, canExecuteOperation } from '../systems/operations.js';
+import { DROP_SCALE } from '../systems/search.js';
+import { getLogWindow } from '../core/log.js';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -27,6 +29,7 @@ export function render(state) {
   renderStreams(state);
   if (state.ui.showPersonnel)     renderPersonnel(state);
   if (state.ui.showInfrastructure) renderInfrastructure(state);
+  renderLog();
   if (state.ui.showOperations)    renderOperations(state);
   if (state.ui.showFooter)        renderFooter(state);
   handleDrop(state);
@@ -70,6 +73,24 @@ function renderFlopsRate(state) {
 
 // ── Streams ───────────────────────────────────────────────────────────────────
 
+const BREAK_STATUS = [
+  [0,   'Waiting — click COMPUTE to start breaking'],
+  [1,   'Scanning key space...'],
+  [20,  'Filtering candidates...'],
+  [50,  'Narrowing in on the key...'],
+  [75,  'Pattern identified — almost there...'],
+  [90,  'Breaking...'],
+  [99,  'One more push...'],
+];
+
+function breakStatus(pct, fps) {
+  if (fps === 0) return BREAK_STATUS[0][1];
+  for (let i = BREAK_STATUS.length - 1; i >= 0; i--) {
+    if (pct >= BREAK_STATUS[i][0]) return BREAK_STATUS[i][1];
+  }
+  return BREAK_STATUS[0][1];
+}
+
 function renderStreams(state) {
   const el = document.getElementById('streams');
   let html = '';
@@ -79,17 +100,24 @@ function renderStreams(state) {
 
     const pct = Math.min(100, (stream.progress / stream.spaceCurrent) * 100);
     const fillClass = stream.blackout ? 'stream-fill danger' : 'stream-fill';
-    const eta = estimateETA(state, stream);
+    const fps = state._flopsPerSec || 0;
+    const status = stream.blackout ? '! SIGNAL LOST — waiting for new intercept' : breakStatus(pct, fps);
+    const reward = Math.floor(
+      stream.rewardBase * state.multipliers.dataPerDrop * Math.pow(DROP_SCALE, stream.dropCount)
+    );
 
     html += `
       <div class="stream">
-        <div class="stream-name">${stream.label}</div>
+        <div class="stream-header">
+          <span class="stream-name">${stream.label}</span>
+        </div>
+        <div class="stream-status-line">${status}</div>
         <div class="stream-track">
           <div class="${fillClass}" style="width:${pct.toFixed(1)}%"></div>
         </div>
         <div class="stream-info">
-          <span>${pct.toFixed(1)}%</span>
-          <span>${stream.blackout ? '⚠ BLACKOUT' : eta}</span>
+          <span>${pct.toFixed(1)}% cracked</span>
+          <span class="stream-reward">+${fmt(reward)} Data on crack</span>
         </div>
       </div>`;
   }
@@ -97,15 +125,19 @@ function renderStreams(state) {
   el.innerHTML = html;
 }
 
-function estimateETA(state, stream) {
-  const fps = state._flopsPerSec || 0;
-  if (fps === 0) return 'click to advance';
-  const remaining = stream.spaceCurrent - stream.progress;
-  const statesPerSec = fps * 10 * state.multipliers.searchSpeed;
-  const secs = remaining / statesPerSec;
-  if (secs < 60)  return `~${Math.ceil(secs)}s`;
-  if (secs < 3600) return `~${Math.ceil(secs/60)}m`;
-  return `~${(secs/3600).toFixed(1)}h`;
+// ── Log ───────────────────────────────────────────────────────────────────────
+
+function renderLog() {
+  const el = document.getElementById('log');
+  if (!el) return;
+  const { a, b, canGoNewer, canGoOlder } = getLogWindow();
+  el.innerHTML = `
+    <div class="log-line${a ? '' : ' log-line-empty'}">${a ?? '— no events yet —'}</div>
+    <div class="log-line${b ? '' : ' log-line-empty'}">${b ?? ''}</div>
+    <div class="log-nav">
+      <button class="log-btn" data-log-dir="-1" ${canGoNewer ? '' : 'disabled'}>▲</button>
+      <button class="log-btn" data-log-dir="1"  ${canGoOlder ? '' : 'disabled'}>▼</button>
+    </div>`;
 }
 
 // ── Operations ────────────────────────────────────────────────────────────────
@@ -118,52 +150,28 @@ const TYPE_TAG = {
   crisis: 'CRISIS',
 };
 
-let _displayedOperations = [];
-
 function renderOperations(state) {
   const el = document.getElementById('operations');
   if (!state.ui.showOperations) { el.innerHTML = ''; return; }
 
-  let html = `<div class="section-label">Operations</div>`;
+  let html = `<div class="section-label">Initiatives</div>`;
 
-  // Merge newly available
-  for (const id of state.operations.available) {
-    if (!_displayedOperations.includes(id)) {
-      _displayedOperations.push(id);
-    }
-  }
-
-  // Filter out removed ones unless recently completed
-  const now = Date.now();
-  _displayedOperations = _displayedOperations.filter(id => {
-    if (state.operations.available.includes(id)) return true;
-    const completedAt = state.operations._completedTimestamps?.[id];
-    return completedAt && (now - completedAt < 1500); // linger for 1.5s
-  });
-
-  for (const opId of _displayedOperations) {
+  for (const opId of state.operations.available) {
     const op = OPERATIONS[opId];
     if (!op) continue;
 
-    const isCompleting = !state.operations.available.includes(opId);
     const cost = getOperationCost(state, opId);
     const { can } = canExecuteOperation(state, opId);
     const tag = TYPE_TAG[op.type] || op.type;
-    
-    let wrapClass = 'op';
-    if (isCompleting) {
-      wrapClass += ' completing';
-    } else if (!can) {
-      wrapClass += ' unaffordable';
-    }
+    const effectText = op.result ? op.result.replace(/\n/g, ' · ') : '';
 
     html += `
-      <div class="${wrapClass}" data-op-id="${opId}">
+      <div class="op${can ? '' : ' unaffordable'}" data-op-id="${opId}">
         <div class="op-name">
           <span class="op-type-tag tag-${op.type}">${tag}</span>
-          ${isCompleting ? 'COMPLETED' : op.label}
+          ${op.label}
         </div>
-        <div class="op-flavor">${op.flavor}</div>
+        ${effectText ? `<div class="op-effect">${effectText}</div>` : ''}
         <div class="op-cost">${formatCost(cost)}</div>
       </div>`;
   }
@@ -286,9 +294,52 @@ function handleDrop(state) {
 
 function handleOverlay(state) {
   if (!state._pendingOverlay) return;
-  const { title, body } = state._pendingOverlay;
-  document.getElementById('overlay-title').textContent = title;
-  document.getElementById('overlay-body').textContent = body;
+  const { title, body, type, value, onConfirm } = state._pendingOverlay;
+  
+  const elTitle   = document.getElementById('overlay-title');
+  const elBody    = document.getElementById('overlay-body');
+  const elInput   = document.getElementById('overlay-input');
+  const elConfirm = document.getElementById('overlay-confirm');
+  const elDismiss = document.getElementById('overlay-dismiss');
+
+  elTitle.textContent = title;
+  elBody.textContent  = body || '';
+  
+  if (type === 'input') {
+    elInput.value = value || '';
+    elInput.classList.remove('hidden');
+    elInput.readOnly = false;
+    elConfirm.classList.remove('hidden');
+    elConfirm.textContent = 'IMPORT';
+    elDismiss.textContent = 'CANCEL';
+    // We'll store the callback on the element temporarily or handle it in game.js
+    elConfirm.onclick = () => {
+      if (onConfirm) onConfirm(elInput.value);
+      document.getElementById('overlay').classList.add('hidden');
+    };
+    setTimeout(() => elInput.focus(), 10);
+  } else if (type === 'export') {
+    elInput.value = value || '';
+    elInput.classList.remove('hidden');
+    elInput.readOnly = true;
+    elConfirm.classList.remove('hidden');
+    elConfirm.textContent = 'COPY';
+    elDismiss.textContent = 'CLOSE';
+    elConfirm.onclick = () => {
+      elInput.select();
+      document.execCommand('copy');
+      elConfirm.textContent = 'COPIED!';
+      setTimeout(() => elConfirm.textContent = 'COPY', 2000);
+    };
+    setTimeout(() => elInput.focus(), 10);
+  } else {
+    elInput.classList.add('hidden');
+    elInput.readOnly = false;
+    elConfirm.classList.add('hidden');
+    elDismiss.textContent = 'CONTINUE';
+    elConfirm.onclick = null;
+  }
+
   document.getElementById('overlay').classList.remove('hidden');
   state._pendingOverlay = null;
 }

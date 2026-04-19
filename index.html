@@ -4,7 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Exponential Machine</title>
-  <style>html,body{background:#0d0d0d}</style>
+  <script>
+    // Run before CSS to prevent theme flash
+    const t = localStorage.getItem('tem_theme');
+    if (t) document.documentElement.dataset.theme = t;
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -29,6 +33,7 @@
       </div>
 
       <div id="col-right">
+        <div id="log"></div>
         <div id="operations"></div>
       </div>
 
@@ -36,14 +41,26 @@
 
     <div id="footer">
       <span id="system-specs"></span>
-      <button id="btn-reset">RESET</button>
+      <div id="footer-controls">
+        <button id="btn-export-b64">EXPORT</button>
+        <button id="btn-import-b64">IMPORT</button>
+        <button id="btn-export-file">SAVE FILE</button>
+        <button id="btn-import-file">LOAD FILE</button>
+        <input type="file" id="import-file-input" style="display: none;" accept=".txt,.json">
+        <button id="btn-theme">LIGHT</button>
+        <button id="btn-reset">RESET</button>
+      </div>
     </div>
 
     <div id="overlay" class="hidden">
       <div id="overlay-box">
         <div id="overlay-title"></div>
         <div id="overlay-body"></div>
-        <button id="overlay-dismiss">CONTINUE</button>
+        <textarea id="overlay-input" class="hidden" spellcheck="false"></textarea>
+        <div id="overlay-actions">
+          <button id="overlay-confirm" class="hidden">CONFIRM</button>
+          <button id="overlay-dismiss">CONTINUE</button>
+        </div>
       </div>
     </div>
 

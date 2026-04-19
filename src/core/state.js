@@ -29,7 +29,8 @@ export function createInitialState() {
     streams: {
       armyEnigma: {
         id: 'armyEnigma',
-        label: 'ARMY ENIGMA',
+        label: 'ARMY RADIO CODE',
+        description: 'Captured enemy message — crack it to earn Data',
         unlocked: true,
         blackout: false,
         spaceBase: 300,
@@ -40,7 +41,8 @@ export function createInitialState() {
       },
       navalEnigma: {
         id: 'navalEnigma',
-        label: 'NAVAL ENIGMA',
+        label: 'NAVAL RADIO CODE',
+        description: 'U-boat traffic — harder to break, earns 4× Data',
         unlocked: false,
         blackout: false,
         spaceBase: 48000,

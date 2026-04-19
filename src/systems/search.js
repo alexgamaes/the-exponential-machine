@@ -1,6 +1,6 @@
 // Search space attrition and The Drop
 
-const DROP_SCALE = 1.35; // each drop the search space grows by this factor
+export const DROP_SCALE = 1.08; // each drop the search space grows by this factor
 const FLOPS_TO_STATES = 10; // 1 FLOP clears 10 states/sec
 
 export function tickSearch(state, delta) {
@@ -31,8 +31,11 @@ function triggerDrop(state, stream) {
   stream.progress = 0;
   stream.dropCount += 1;
 
-  // Reward calculation
-  let reward = stream.rewardBase * state.multipliers.dataPerDrop;
+  // Reward calculation — scales with DROP_SCALE so loop time stays consistent
+  // as search space grows; multipliers from ops/personnel make you faster
+  let reward = stream.rewardBase
+    * state.multipliers.dataPerDrop
+    * Math.pow(DROP_SCALE, stream.dropCount - 1);
 
   // Herivel tip bonus: +5% per boffin
   if (state.flags.herivelTipActive) {

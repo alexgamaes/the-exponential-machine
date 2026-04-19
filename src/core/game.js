@@ -1,10 +1,19 @@
 import { createInitialState } from './state.js';
-import { saveGame, loadGame, deleteSave } from './save.js';
+import {
+  saveGame,
+  loadGame,
+  deleteSave,
+  exportSaveBase64,
+  importSaveBase64,
+  exportSaveFile,
+  importSaveFile
+} from './save.js';
 import { tickResources, buyUnit, buyInfrastructure } from '../systems/resources.js';
 import { tickSearch, handleComputeClick } from '../systems/search.js';
 import { executeOperation, refreshAvailableOperations } from '../systems/operations.js';
 import { render, updateUIFlags } from '../ui/render.js';
 import { isDev, log } from './debug.js';
+import { scrollLog } from './log.js';
 
 const SAVE_INTERVAL = 15; // seconds between auto-saves
 
@@ -83,9 +92,32 @@ function advanceDay(state) {
 // ── Event binding ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  // Theme toggle
+  const btnTheme = document.getElementById('btn-theme');
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('tem_theme', theme);
+    btnTheme.textContent = theme === 'dark' ? 'LIGHT' : 'DARK';
+  }
+  function resolveCurrentTheme() {
+    const stored = localStorage.getItem('tem_theme');
+    if (stored) return stored;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  btnTheme.textContent = resolveCurrentTheme() === 'dark' ? 'LIGHT' : 'DARK';
+  btnTheme.addEventListener('click', () => {
+    applyTheme(resolveCurrentTheme() === 'dark' ? 'light' : 'dark');
+  });
+
   // Compute button
   document.getElementById('btn-compute').addEventListener('click', () => {
     handleComputeClick(state);
+  });
+
+  // Log navigation
+  document.getElementById('log').addEventListener('click', e => {
+    const dir = e.target.dataset.logDir;
+    if (dir) scrollLog(Number(dir));
   });
 
   // Operations, units, infra — single delegated listener on the whole layout
@@ -105,6 +137,67 @@ function bindEvents() {
     document.getElementById('overlay').classList.add('hidden');
   });
 
+  // Save / Export / Import
+  document.getElementById('btn-export-b64').addEventListener('click', () => {
+    const b64 = exportSaveBase64(state);
+    state._pendingOverlay = {
+      title: 'EXPORT SAVE',
+      body: 'Copy the string below to save your progress elsewhere:',
+      type: 'export',
+      value: b64
+    };
+  });
+
+  document.getElementById('btn-import-b64').addEventListener('click', () => {
+    state._pendingOverlay = {
+      title: 'IMPORT SAVE',
+      body: 'Paste your save string below to load it:',
+      type: 'input',
+      onConfirm: (val) => {
+        const b64 = (val || '').trim();
+        if (!b64) return;
+        const imported = importSaveBase64(b64);
+        if (imported) {
+          state = imported;
+          saveGame(state);
+          location.reload();
+        } else {
+          // Instead of alert, use the overlay again for the error
+          state._pendingOverlay = {
+            title: 'IMPORT FAILED',
+            body: 'Invalid save string! Make sure you copied the entire string from an export.'
+          };
+        }
+      }
+    };
+  });
+
+  document.getElementById('btn-export-file').addEventListener('click', () => {
+    exportSaveFile(state);
+  });
+
+  document.getElementById('btn-import-file').addEventListener('click', () => {
+    document.getElementById('import-file-input').click();
+  });
+
+  document.getElementById('import-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const imported = await importSaveFile(file);
+      if (imported) {
+        state = imported;
+        saveGame(state);
+        location.reload();
+      }
+    } catch (err) {
+      state._pendingOverlay = {
+        title: 'FILE IMPORT FAILED',
+        body: 'Could not read save file: ' + err.message
+      };
+    }
+  });
+
   const btn = document.getElementById('btn-reset');
   if (!isDev) {
     btn.style.display = 'none';
@@ -112,7 +205,9 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       if (btn.dataset.armed) {
         state = null; // prevent visibilitychange from re-saving
+        const theme = localStorage.getItem('tem_theme');
         localStorage.clear();
+        if (theme) localStorage.setItem('tem_theme', theme);
         location.reload();
       } else {
         btn.dataset.armed = '1';

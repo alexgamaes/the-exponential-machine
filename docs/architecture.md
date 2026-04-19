@@ -117,6 +117,8 @@ FLOPs are split evenly across all active (unlocked + not blackout) streams. Manu
 - All keys starting with `_` are stripped before serialization (transient runtime state).
 - On load, missing top-level keys are merged from `createInitialState()` to handle saves from older versions.
 - Save key: `tem_save_v1`. Increment version if the state shape changes in a breaking way.
+- **Manual Export/Import**: Users can export their save as a Base64 string or a JSON file, and import them back. Importing overwrites the current local save and reloads the page.
+- **Session Architecture (Planned)**: The system is designed to eventually support multiple "sessions" or save slots by introducing an index of session IDs and metadata in `localStorage`.
 
 ---
 

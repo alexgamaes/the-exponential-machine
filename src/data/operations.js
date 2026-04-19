@@ -14,6 +14,7 @@ export const OPERATIONS = {
     cost: { data: 50 },
     requires: {},
     unlocks: ['theHerivelTip', 'formationHut6'],
+    result: 'Army Radio Code search space halved.\nEach crack now takes 50% less computation.',
     effect(state) {
       state.streams.armyEnigma.spaceCurrent *= 0.5;
       state.streams.armyEnigma.spaceBase *= 0.5;
@@ -28,6 +29,7 @@ export const OPERATIONS = {
     cost: { data: 120 },
     requires: {},
     unlocks: ['firstManualBreak', 'recruitFirst50'],
+    result: 'Dedicated Army Radio Code cluster online.\nSection Head role unlocked.\nPersonnel expansion available.',
     effect(state) {
       // Section Head unit is now purchasable — flagged via completed operations
     },
@@ -41,6 +43,7 @@ export const OPERATIONS = {
     cost: { data: 180 },
     requires: {},
     unlocks: [],
+    result: 'Naval Radio Code stream unlocked.\nU-boat encrypted traffic now intercepted.\nCracking it yields 4× the Data reward.',
     effect(state) {
       state.streams.navalEnigma.unlocked = true;
     },
@@ -48,12 +51,13 @@ export const OPERATIONS = {
 
   firstManualBreak: {
     id: 'firstManualBreak',
-    label: 'First Manual Break of Army Enigma',
+    label: 'First Manual Break of Army Code',
     type: 'intelligence',
     flavor: 'January 6, 1940. Proof of concept for human-meat calculation. The search space is finite. It can be beaten.',
     cost: { data: 150 },
     requires: { operations: ['formationHut6'] },
     unlocks: ['theHerivelTip'],
+    result: 'Army code crack reward +50%.\nAll future operation costs −5%.',
     effect(state) {
       state.streams.armyEnigma.rewardBase *= 1.5;
       state.multipliers.operationCost = Math.max(0.1, state.multipliers.operationCost - 0.05);
@@ -68,6 +72,7 @@ export const OPERATIONS = {
     cost: { data: 80 },
     requires: { operations: ['zygalskiSheets'] },
     unlocks: ['frequencyAnalysis'],
+    result: 'Army Radio Code crack reward doubled.\nEach Boffin now adds +5% bonus to every crack.',
     effect(state) {
       state.streams.armyEnigma.rewardBase *= 2;
       // Drop reward scales with boffins — handled in search system via flag
@@ -83,6 +88,7 @@ export const OPERATIONS = {
     cost: { data: 300, flops: 1500 },
     requires: { operations: ['theHerivelTip'] },
     unlocks: ['rotorLogicMapping'],
+    result: 'Search speed +40% — cracks happen faster.\nAll future algorithm operations −20% cheaper.',
     effect(state) {
       state.multipliers.searchSpeed *= 1.4;
       // Future algorithm ops cost −20% — stored as a flag multiplier
@@ -98,6 +104,7 @@ export const OPERATIONS = {
     cost: { data: 800, flops: 4000 },
     requires: { operations: ['frequencyAnalysis'] },
     unlocks: ['conceptualizeBombe'],
+    result: 'Data earned per crack ×3.\nYou now see exactly how far through each intercept you are.',
     effect(state) {
       state.multipliers.dataPerDrop *= 3;
       state.flags.showSearchPercent = true;
@@ -112,6 +119,7 @@ export const OPERATIONS = {
     cost: { data: 200 },
     requires: { operations: ['formationHut6'] },
     unlocks: ['cardIndexEarly'],
+    result: '+50 Supply Cap — room for 50 more personnel.\nNight Shift Rotation now active (×2 FLOPs for 90s every 10 min).',
     effect(state) {
       state.resources.supply.cap += 50;
       state.upgrades.nightShiftUnlocked = true;
@@ -126,6 +134,7 @@ export const OPERATIONS = {
     cost: { data: 400 },
     requires: { operations: ['recruitFirst50'] },
     unlocks: [],
+    result: 'Data storage capacity ×5.\nYou can now stockpile far more before hitting the cap.',
     effect(state) {
       state.resources.dataCap *= 5;
     },
