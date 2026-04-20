@@ -1,102 +1,46 @@
 # The Exponential Machine
 
-Idle game where you play as the emergent intelligence of computation itself — growing from 200 human calculators with pencils at Bletchley Park in 1939 to a post-human force re-engineering the universe across 11 phases of exponential technological evolution.
+Idle game about the history of computation — from human calculators with pencils in 1939 to a post-human force re-engineering the universe across 11 phases.
 
-Inspired by Universal Paperclips. Built with vanilla JavaScript, no framework, no build step.
+Inspired by Universal Paperclips. Vanilla JavaScript, no framework, no build step.
+
+---
+
+## Repo layout
+
+```
+index.html          # Landing page → pick v1 or v2
+serve.py            # One-liner dev server (Python stdlib only)
+package.json        # Test runner entry (points at v1/tests/)
+
+v1/                 # Frozen original implementation (Phase 0–1, Enigma framing)
+  src/ sim/ tests/ docs/ assets/ index.html style.css
+
+v2/                 # Active rebuild (clean slate — see v2/README.md)
+  src/ index.html style.css
+```
+
+Design docs and feedback live in a sibling repo at
+`/Users/gama/gemini/the-exponential-machine/` (shared across both versions).
 
 ---
 
 ## Setup
 
 ```bash
-# Run locally (requires Python 3)
 python3 serve.py
-# Opens http://localhost:8000 automatically
+# Opens http://localhost:8000 — landing page picks v1 or v2
 ```
 
-No npm install needed to play. `npm install` only required to run tests:
-
-```bash
-npm install
-npm test
-```
+`npm install` + `npm test` runs the v1 test suite (84 tests).
 
 ---
 
-## Project Structure
+## Why the split
 
-```
-index.html          # Single HTML shell — mostly empty divs populated by JS
-style.css           # All styles
-serve.py            # One-liner dev server (Python stdlib only)
-
-src/
-  core/
-    game.js         # Entry point: init, game loop (rAF), event binding
-    state.js        # createInitialState() — canonical shape of all game state
-    save.js         # localStorage save/load (strips transient _ keys on save)
-    debug.js        # isDev flag + log() gated to localhost only
-
-  data/             # Static definitions — pure config, no logic
-    operations.js   # All Operations: cost, effect, unlock chains
-    units.js        # Personnel and Infrastructure unit definitions
-
-  systems/          # Logic that mutates state each tick
-    resources.js    # FLOPs/sec from personnel, Supply tracking, buy helpers
-    search.js       # Search space attrition and The Drop
-    operations.js   # Execute operations, check prerequisites, unlock chains
-
-  ui/
-    render.js       # Full DOM rebuild each frame + progressive disclosure flags
-
-docs/               # Game design documents
-tests/              # Node built-in test runner (node:test)
-```
-
----
-
-## Architecture Notes
-
-See `docs/architecture.md` for a full explanation. Short version:
-
-- **State** is one plain JS object mutated in place. All systems read/write it.
-- **Systems** run every frame in order: `resources → search → date → uiFlags`.
-- **Render** rebuilds innerHTML every frame. This is intentional simplicity — no virtual DOM, no diffing. Works fine at this scale.
-- **Events** use `pointerdown` (not `click`) on a single delegated listener on `#layout`. This is required because innerHTML replacement between `mousedown` and `mouseup` detaches elements, causing `click` to never bubble.
-- **Save** serializes state to localStorage every 15s and on tab hide. Keys starting with `_` are transient runtime signals and are never persisted.
-- **Progressive disclosure**: the `state.ui` flags gate which DOM sections exist. Sections appear the first time their condition is met and stay visible.
-
----
-
-## Adding an Operation
-
-1. Add an entry to `src/data/operations.js`:
-```js
-myOperation: {
-  id: 'myOperation',
-  label: 'Human-readable name',
-  type: 'algorithm' | 'infrastructure' | 'intelligence' | 'acquisition' | 'crisis',
-  flavor: 'One sentence of historical flavor text.',
-  cost: { data: 500, flops: 0 },
-  requires: { operations: ['someOtherId'], minBoffins: 2 },
-  unlocks: ['nextOperationId'],
-  effect(state) {
-    // mutate state here
-  },
-},
-```
-2. Add its `id` to the `unlocks` array of whichever existing operation should reveal it.
-3. That's it. No registration needed.
-
-## Adding a Personnel Unit
-
-1. Add an entry to `src/data/units.js` under `UNITS`.
-2. Add a matching entry to `state.personnel` in `src/core/state.js`.
-3. Add a call to `unitRow(state, 'yourUnitId', supplyFree)` in `renderPersonnel()` in `src/ui/render.js`, gated behind whatever operation should unlock it.
-
----
-
-## Dev Tools (localhost only)
-
-- **RESET button** — bottom-right corner. Two-click confirmation. Clears localStorage and reloads.
-- **Console logs** — `[TEM]` prefixed logs fire on all interactions. Check browser console.
+v1 shipped a playable Phase 0–1 but the design review concluded the mechanics
+couldn't generalize past Enigma and were dimensionally overloaded at start.
+v2 rebuilds from scratch with a different metaphor. v1 stays runnable as
+reference and as a donor for engine-style pieces (save harness, event log,
+theme toggle, headless simulator) — no engine abstraction is carried over
+speculatively. See `v2-02-separation.md` in the design docs repo.

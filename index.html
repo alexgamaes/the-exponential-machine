@@ -4,68 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Exponential Machine</title>
-  <script>
-    // Run before CSS to prevent theme flash
-    const t = localStorage.getItem('tem_theme');
-    if (t) document.documentElement.dataset.theme = t;
-  </script>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: ui-monospace, monospace; background: #111; color: #ddd;
+           display: grid; place-items: center; min-height: 100vh; margin: 0; }
+    main { text-align: center; }
+    h1 { font-weight: 400; letter-spacing: 0.1em; margin-bottom: 2rem; }
+    a { display: inline-block; padding: 1rem 2rem; margin: 0 0.5rem;
+        color: #ddd; border: 1px solid #444; text-decoration: none; }
+    a:hover { border-color: #ddd; }
+    small { display: block; margin-top: 2rem; color: #666; }
+  </style>
 </head>
 <body>
-  <div id="app">
-
-    <header>
-      <span id="game-title">THE EXPONENTIAL MACHINE</span>
-      <span id="game-date"></span>
-    </header>
-
-    <div id="layout">
-
-      <div id="col-left">
-        <div id="resources"></div>
-        <div id="compute-section">
-          <button id="btn-compute">COMPUTE</button>
-          <div id="flops-rate"></div>
-        </div>
-        <div id="streams"></div>
-        <div id="personnel"></div>
-        <div id="hardware"></div>
-        <div id="infrastructure"></div>
-      </div>
-
-      <div id="col-right">
-        <div id="log"></div>
-        <div id="operations"></div>
-      </div>
-
-    </div>
-
-    <div id="footer">
-      <span id="system-specs"></span>
-      <div id="footer-controls">
-        <button id="btn-export-b64">EXPORT</button>
-        <button id="btn-import-b64">IMPORT</button>
-        <button id="btn-export-file">SAVE FILE</button>
-        <button id="btn-import-file">LOAD FILE</button>
-        <input type="file" id="import-file-input" style="display: none;" accept=".txt,.json">
-        <button id="btn-theme">LIGHT</button>
-        <button id="btn-reset">RESET</button>
-      </div>
-    </div>
-
-    <div id="overlay" class="hidden">
-      <div id="overlay-box">
-        <div id="overlay-title"></div>
-        <div id="overlay-body"></div>
-        <textarea id="overlay-input" class="hidden" spellcheck="false"></textarea>
-        <div id="overlay-actions">
-          <button id="overlay-confirm" class="hidden">CONFIRM</button>
-          <button id="overlay-dismiss">CONTINUE</button>
-        </div>
-      </div>
-    </div>
-
-  </div>
-  <script type="module" src="src/core/game.js"></script>
+  <main>
+    <h1>THE EXPONENTIAL MACHINE</h1>
+    <a href="v2/">v2 (active)</a>
+    <a href="v1/">v1 (frozen)</a>
+    <small>pick a version</small>
+  </main>
 </body>
 </html>
