@@ -56,7 +56,7 @@ export const UNITS = {
     type: 'personnel',
     flopsPerSec: 0,
     supplyPerUnit: 1,
-    electricityPerUnit: 0.5,
+    electricityPerUnit: 0,
     description: 'Activates one Bombe',
     stateKey: 'wren',
     requiresUnlock: 'recruitmentFirstWrens',

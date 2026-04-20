@@ -87,6 +87,19 @@ export function canExecuteOperation(state, opId) {
     return { can: false, reason: `Need ${gates.minBombes} Bombes` };
   if (gates.minIndexers && (state.personnel.indexer?.count || 0) < gates.minIndexers)
     return { can: false, reason: `Need ${gates.minIndexers} Indexers` };
+  if (gates.minJuniorCalculators && state.personnel.juniorCalculator.count < gates.minJuniorCalculators)
+    return { can: false, reason: `Need ${gates.minJuniorCalculators} Junior Calculators` };
+  if (gates.minWrens && (state.personnel.wren?.count || 0) < gates.minWrens)
+    return { can: false, reason: `Need ${gates.minWrens} Wrens` };
+  if (gates.minDate) {
+    const d = state.date;
+    const dateOk = d.year > gates.minDate.year
+                || (d.year === gates.minDate.year && d.month >= gates.minDate.month);
+    if (!dateOk) {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return { can: false, reason: `Available from ${months[gates.minDate.month - 1]} ${gates.minDate.year}` };
+    }
+  }
 
   return { can: true };
 }

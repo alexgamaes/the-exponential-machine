@@ -154,13 +154,12 @@ function agentTick(state, rng, t, events, tickSize) {
 
   // ── Unit hiring ───────────────────────────────────────────────────────────
   // Don't hire if data is below 3× the cheapest unit cost (keep a buffer)
-  const minBuffer = 3 * getUnitCost(state, 'juniorCalculator');
-  if (data < minBuffer) return;
-
   const units = ['juniorCalculator', 'boffin', 'sectionHead', 'cryptanalyst', 'indexer', 'wren'];
   for (const u of units) {
     if (!isUnlocked(state, u, GATED_UNITS)) continue;
     if (supplyFree < 1) break;
+    // Per-unit buffer: keep 3× this unit's cost in reserve
+    if (data < 3 * getUnitCost(state, u)) continue;
     if (rng() < 0.08) buyUnit(state, u);
   }
 }
@@ -186,6 +185,15 @@ function runSim({ seed, tickSize = 0.05, maxTime = 7200 }) {
   // Periodic snapshots every 60 game-seconds for resource balance analysis
   const snapshots = [];
   let nextSnapshot = 60;
+
+  // ── Carrot metric: how long the initiative panel is empty ─────────────────
+  // The panel going empty means the player has no visible next goal — see
+  // MEMORY.md "Carrot Principle". We measure emptiness AFTER each tick
+  // (after refresh + agent actions) so both "nothing-triggered-yet" and
+  // "just-executed-the-last-op" moments count.
+  let emptyTotal = 0;
+  let emptyStart = null;               // game-seconds at stretch start, or null
+  const emptyStretches = [];           // [{ start, end, duration }]
 
   const wallStart = Date.now();
   let iter = 0;
@@ -222,8 +230,22 @@ function runSim({ seed, tickSize = 0.05, maxTime = 7200 }) {
       nextSnapshot += 60;
     }
 
+    // Carrot metric: observe panel emptiness for this tick
+    if (state.operations.available.length === 0) {
+      emptyTotal += tickSize;
+      if (emptyStart === null) emptyStart = t;
+    } else if (emptyStart !== null) {
+      emptyStretches.push({ start: emptyStart, end: t, duration: t - emptyStart });
+      emptyStart = null;
+    }
+
     t += tickSize;
     if (state.phase >= 2) break;
+  }
+
+  // Close a still-open empty stretch at run end (unless game ended via phase 2)
+  if (emptyStart !== null && state.phase < 2) {
+    emptyStretches.push({ start: emptyStart, end: t, duration: t - emptyStart });
   }
 
   return {
@@ -234,6 +256,12 @@ function runSim({ seed, tickSize = 0.05, maxTime = 7200 }) {
     finalDate: fmtDate(state.date),
     events,
     snapshots,
+    carrot: {
+      emptyTotal,                                 // total seconds panel was empty
+      emptyPct: t > 0 ? emptyTotal / t : 0,       // fraction of run time
+      stretches: emptyStretches,                  // each {start, end, duration}
+      longest: emptyStretches.reduce((m, s) => Math.max(m, s.duration), 0),
+    },
     final: {
       fps:      state._flopsPerSec || 0,
       bombes:   state.hardware.bombes.count,
@@ -345,6 +373,38 @@ function report(results) {
     for (const g of gaps) {
       const warn = g.gap > 120 ? ' ⚠⚠' : g.gap > 60 ? ' ⚠' : '';
       console.log(`  ${fmtTime(g.gap).padStart(6)}  ${g.from} → ${g.to}${warn}`);
+    }
+  }
+
+  // ── Carrot penalty: initiative panel empty ────────────────────────────────
+  // Measures how often players have no visible next goal. An empty panel = no
+  // carrot. Not counted: the final transition where the game ends (phase 2).
+  const pcts       = results.map(r => r.carrot.emptyPct);
+  const totals     = results.map(r => r.carrot.emptyTotal);
+  const longests   = results.map(r => r.carrot.longest);
+  const nStretches = results.map(r => r.carrot.stretches.length);
+  const avgPct     = mean(pcts);
+  const avgTotal   = mean(totals);
+  const avgLongest = mean(longests);
+  const p90Longest = pct(longests, 0.9);
+  const avgCount   = mean(nStretches);
+
+  console.log(`\n${'─'.repeat(65)}`);
+  console.log(` CARROT PENALTY  (initiative panel empty — no visible next goal)`);
+  console.log('─'.repeat(65));
+  console.log(`  Panel empty:    avg ${(avgPct * 100).toFixed(1)}% of run  (${fmtTime(avgTotal)} of run time)`);
+  console.log(`  Longest stretch: avg ${fmtTime(avgLongest)}   p90 ${fmtTime(p90Longest)}`);
+  console.log(`  Empty stretches per run: avg ${avgCount.toFixed(1)}`);
+
+  // Top offenders across all runs — worst individual empty stretches
+  const allStretches = results.flatMap(r =>
+    r.carrot.stretches.map(s => ({ ...s, seed: r.seed }))
+  ).sort((a, b) => b.duration - a.duration).slice(0, 5);
+
+  if (allStretches.length) {
+    console.log(`  Worst stretches (any run):`);
+    for (const s of allStretches) {
+      console.log(`    ${fmtTime(s.duration).padStart(7)}  at t=${fmtTime(s.start)}  (seed=${s.seed})`);
     }
   }
 

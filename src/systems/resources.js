@@ -56,7 +56,7 @@ export function tickResources(state, delta) {
   }
 
   // ── Electricity used ──────────────────────────────────────────────────────
-  state.resources.electricity.used = state.hardware.bombes.count * 5 + wrenCount * 0.5;
+  state.resources.electricity.used = state.hardware.bombes.count * 5;
 
   // ── Supply used ───────────────────────────────────────────────────────────
   let supplyUsed = 0;
@@ -174,10 +174,7 @@ export function buyBombe(state) {
   const cost = getBombeCost(state);
   if (state.resources.data < cost) return false;
   const elecFree = state.resources.electricity.cap - state.resources.electricity.used;
-  // Reserve 0.5W for the Wren operator — buying a Bombe with no room left for a Wren
-  // creates a deadlock where Bombes can't run and can never be staffed.
-  const WREN_ELEC = 0.5;
-  if (elecFree < CONFIG.bombeElecPerUnit + WREN_ELEC) return false;
+  if (elecFree < CONFIG.bombeElecPerUnit) return false;
   state.resources.data -= cost;
   state.hardware.bombes.count += 1;
   return true;

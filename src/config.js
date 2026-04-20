@@ -27,8 +27,8 @@ export const CONFIG = {
   operationCostFloor:    0.7,   // operationCost multiplier cannot go below this
 
   // ── Night shift ──────────────────────────────────────────────────────────────
-  nightShiftDuration:  90,   // seconds active (doubles FLOPs)
-  nightShiftCooldown:  600,  // seconds between cycles
+  nightShiftDuration:  60,   // seconds active (doubles FLOPs)
+  nightShiftCooldown:  240,  // seconds between cycles
 
   // ── Bombe ────────────────────────────────────────────────────────────────────
   bombeStatesPerMin: 17000,  // states/min cleared by one running Bombe
@@ -71,6 +71,8 @@ export const CONFIG = {
     wartimeRationing:          { data: 800 },
     battleOfBritainIntel:      { data: 600 },
     afrikaKorpsSupplyTracked:  { data: 1800 },
+    battleOfCapeMatapan:       { data: 1800 },
+    sinkingOfBismarck:         { data: 2400 },
     conceptualizeBombe:        { data: 3000, flops: 15000 },
     turingMemorandum:          { data: 2500 },
 
@@ -85,11 +87,15 @@ export const CONFIG = {
     recruitmentFirstWrens:     { data: 3500 },
     operationMincemeat:        { data: 6000 },
     firstNavalEnigmaBreak:     { data: 15000 },
+    sharkBlackout:             { data: 9000 },
+    fourRotorBombe:            { data: 13000 },
     cardIndexFull:             { data: 20000 },
 
     // Phase 1 war — post-cardIndexFull (dataCap = 600000)
     battleOfAtlanticTide:      { data: 12000 },
+    colossusOperational:       { data: 22000 },
     dDayIntelligence:          { data: 30000 },
+    ardennesOffensive:         { data: 40000 },
     veDay:                     { data: 60000 },
   },
 

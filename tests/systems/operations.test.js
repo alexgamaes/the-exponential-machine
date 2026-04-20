@@ -80,9 +80,10 @@ describe('canExecuteOperation', () => {
     state.resources.data = 10000;
     state.resources.flops = 100000;
     state.personnel.boffin.count = 5;
+    state.huts = 0;
     const { can, reason } = canExecuteOperation(state, 'conceptualizeBombe');
     assert.equal(can, false);
-    assert.match(reason, /Need 2 Huts/);
+    assert.match(reason, /Need 1 Huts/);
   });
 
   test('succeeds when all resources and gates satisfied', () => {
@@ -90,7 +91,7 @@ describe('canExecuteOperation', () => {
     state.resources.data = 10000;
     state.resources.flops = 100000;
     state.personnel.boffin.count = 5;
-    state.huts = 2;
+    state.huts = 1;
     const { can } = canExecuteOperation(state, 'conceptualizeBombe');
     assert.equal(can, true);
   });
@@ -111,44 +112,37 @@ describe('canExecuteOperation', () => {
 
 describe('trigger system', () => {
 
-  test('zygalskiSheets does not appear before first drop', () => {
+  test('zygalskiSheets appears at game start (no drops required)', () => {
     const state = createInitialState();
     state.stats.totalDrops = 0;
-    refreshAvailableOperations(state);
-    assert.equal(state.operations.available.includes('zygalskiSheets'), false);
-  });
-
-  test('zygalskiSheets appears after 3 drops', () => {
-    const state = createInitialState();
-    state.stats.totalDrops = 3;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('zygalskiSheets'));
   });
 
-  test('formationHut6 appears after 8 junior calculators hired', () => {
+  test('formationHut6 appears after 2 junior calculators hired', () => {
     const state = createInitialState();
-    state.personnel.juniorCalculator.count = 8;
+    state.personnel.juniorCalculator.count = 2;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('formationHut6'));
   });
 
-  test('formationHut6 does not appear with only 7 junior calculators', () => {
+  test('formationHut6 does not appear with only 1 junior calculator', () => {
     const state = createInitialState();
-    state.personnel.juniorCalculator.count = 7;
+    state.personnel.juniorCalculator.count = 1;
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('formationHut6'), false);
   });
 
-  test('formationHut8 appears after 15 drops', () => {
+  test('formationHut8 appears after 20 drops', () => {
     const state = createInitialState();
-    state.stats.totalDrops = 15;
+    state.stats.totalDrops = 20;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('formationHut8'));
   });
 
-  test('formationHut8 does not appear at 14 drops', () => {
+  test('formationHut8 does not appear at 19 drops', () => {
     const state = createInitialState();
-    state.stats.totalDrops = 14;
+    state.stats.totalDrops = 19;
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('formationHut8'), false);
   });
@@ -161,17 +155,18 @@ describe('trigger system', () => {
     assert.ok(state.operations.available.includes('theHerivelTip'));
   });
 
-  test('recruitFirst50 requires BOTH formationHut6 done AND 20 calculators', () => {
+  test('recruitFirst50 requires formationHut6 done AND 25 calculators AND 25 drops', () => {
     const state = createInitialState();
 
     // Only formationHut6 done — not enough
     state.operations.completed = ['formationHut6'];
-    state.personnel.juniorCalculator.count = 10;
+    state.personnel.juniorCalculator.count = 20;
+    state.stats.totalDrops = 30;
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('recruitFirst50'), false);
 
     // Add enough calculators — now it appears
-    state.personnel.juniorCalculator.count = 20;
+    state.personnel.juniorCalculator.count = 25;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('recruitFirst50'));
   });
@@ -255,34 +250,42 @@ describe('executeOperation', () => {
 // ── minDate trigger ───────────────────────────────────────────────────────────
 
 describe('minDate trigger', () => {
-  test('op does not appear before the required date', () => {
+  test('op is visible but blocked by canExecute when date not met', () => {
     const state = createInitialState();
     state.stats.totalDrops = 10;
-    state.date = { year: 1939, month: 9, day: 1 }; // Sep 1939, needs Oct 1939
-    refreshAvailableOperations(state);
-    assert.equal(state.operations.available.includes('convoyEscortsRerouted'), false);
-  });
-
-  test('op appears when date exactly meets the threshold month', () => {
-    const state = createInitialState();
-    state.stats.totalDrops = 10;
-    state.date = { year: 1939, month: 10, day: 1 }; // Oct 1939
+    state.resources.data = 10000;
+    state.date = { year: 1939, month: 8, day: 1 }; // before gate date 1939-09
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('convoyEscortsRerouted'));
+    const { can, reason } = canExecuteOperation(state, 'convoyEscortsRerouted');
+    assert.equal(can, false);
+    assert.match(reason, /Available from/);
   });
 
-  test('op appears when date is past the threshold month', () => {
+  test('op executable when date exactly meets the gate month', () => {
     const state = createInitialState();
     state.stats.totalDrops = 10;
-    state.date = { year: 1940, month: 1, day: 1 }; // later year
+    state.resources.data = 10000;
+    state.date = { year: 1939, month: 9, day: 1 };
     refreshAvailableOperations(state);
-    assert.ok(state.operations.available.includes('convoyEscortsRerouted'));
+    const { can } = canExecuteOperation(state, 'convoyEscortsRerouted');
+    assert.equal(can, true);
   });
 
-  test('date is AND-combined with other trigger fields', () => {
+  test('op executable when date is past the gate month', () => {
     const state = createInitialState();
-    state.date = { year: 1939, month: 10, day: 1 }; // date met
-    state.stats.totalDrops = 0; // drops NOT met (needs 5)
+    state.stats.totalDrops = 10;
+    state.resources.data = 10000;
+    state.date = { year: 1940, month: 1, day: 1 };
+    refreshAvailableOperations(state);
+    const { can } = canExecuteOperation(state, 'convoyEscortsRerouted');
+    assert.equal(can, true);
+  });
+
+  test('date gate combined with trigger — trigger still gates visibility', () => {
+    const state = createInitialState();
+    state.date = { year: 1939, month: 10, day: 1 };
+    state.stats.totalDrops = 0; // drops NOT met (trigger needs 1)
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('convoyEscortsRerouted'), false);
   });
@@ -291,40 +294,41 @@ describe('minDate trigger', () => {
 // ── Starter gating ops (plan 07) ─────────────────────────────────────────────
 
 describe('starter gating operations', () => {
-  test('recruitMathematicians appears after 3 drops AND 5 calculators', () => {
+  test('recruitMathematicians appears after 1 drop AND 2 calculators', () => {
     const state = createInitialState();
-    state.stats.totalDrops = 3;
-    state.personnel.juniorCalculator.count = 5;
+    state.stats.totalDrops = 1;
+    state.personnel.juniorCalculator.count = 2;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('recruitMathematicians'));
   });
 
   test('recruitMathematicians does not appear with only drops (no calculators)', () => {
     const state = createInitialState();
-    state.stats.totalDrops = 3;
-    state.personnel.juniorCalculator.count = 4;
+    state.stats.totalDrops = 1;
+    state.personnel.juniorCalculator.count = 1;
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('recruitMathematicians'), false);
   });
 
-  test('messHallConstructed appears after 2 huts', () => {
+  test('messHallConstructed appears after 1 hut', () => {
     const state = createInitialState();
-    state.huts = 2;
+    state.huts = 1;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('messHallConstructed'));
   });
 
-  test('messHallConstructed does not appear with 1 hut', () => {
+  test('messHallConstructed does not appear with 0 huts', () => {
     const state = createInitialState();
-    state.huts = 1;
+    state.huts = 0;
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('messHallConstructed'), false);
   });
 
-  test('wartimeRationing appears after recruitMathematicians completed AND 3 boffins hired', () => {
+  test('wartimeRationing appears after recruitMathematicians completed AND 4 boffins hired AND 40 drops', () => {
     const state = createInitialState();
     state.operations.completed = ['recruitMathematicians'];
-    state.personnel.boffin.count = 3;
+    state.personnel.boffin.count = 4;
+    state.stats.totalDrops = 40;
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('wartimeRationing'));
   });
@@ -332,6 +336,7 @@ describe('starter gating operations', () => {
   test('wartimeRationing does not appear without recruitMathematicians completed', () => {
     const state = createInitialState();
     state.personnel.boffin.count = 5;
+    state.stats.totalDrops = 40;
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('wartimeRationing'), false);
   });
@@ -345,7 +350,7 @@ describe('war events and phase transitions', () => {
     state.resources.data = 10000;
     state.resources.flops = 100000;
     state.personnel.boffin.count = 5;
-    state.huts = 2;
+    state.huts = 1;
     executeOperation(state, 'conceptualizeBombe');
     assert.equal(state.flags.bombeConceptualized, true);
     assert.equal(state.phase, 0); // phase unchanged
@@ -355,7 +360,8 @@ describe('war events and phase transitions', () => {
     const state = createInitialState();
     state.resources.data = 10000;
     state.personnel.boffin.count = 5;
-    state.huts = 2;
+    state.huts = 1;
+    state.date = { year: 1941, month: 10, day: 1 }; // past gate date Sep 1941
     state.operations.completed = ['rotorLogicMapping', 'afrikaKorpsSupplyTracked'];
     executeOperation(state, 'turingMemorandum');
     assert.equal(state.phase, 1);
@@ -368,7 +374,7 @@ describe('war events and phase transitions', () => {
   test('veDay sets phase to 2', () => {
     const state = createInitialState();
     state.resources.data = 500000;
-    state.operations.completed = ['dDayIntelligence'];
+    state.operations.completed = ['ardennesOffensive'];
     state.date = { year: 1945, month: 5, day: 1 };
     executeOperation(state, 'veDay');
     assert.equal(state.phase, 2);
@@ -379,7 +385,8 @@ describe('war events and phase transitions', () => {
     const state = createInitialState();
     state.resources.data = 10000;
     state.personnel.boffin.count = 5;
-    state.huts = 2;
+    state.huts = 1;
+    state.date = { year: 1941, month: 10, day: 1 };
     state.operations.completed = ['rotorLogicMapping', 'afrikaKorpsSupplyTracked'];
     executeOperation(state, 'turingMemorandum');
     assert.ok(state._pendingOverlay);
@@ -389,7 +396,8 @@ describe('war events and phase transitions', () => {
   test('overlay does NOT fire for welchmanDiagonalBoard (not isPhaseTransition)', () => {
     const state = createInitialState();
     state.resources.data = 20000;
-    state.personnel.boffin.count = 1;
+    state.personnel.boffin.count = 8;
+    state.personnel.wren.count = 3;   // satisfies new minWrens: 3 gate
     state.hardware.bombes.count = 1;  // satisfies new minBombes: 1 gate
     state.operations.completed = ['installationVictory'];
     executeOperation(state, 'welchmanDiagonalBoard');
@@ -417,10 +425,10 @@ describe('war events and phase transitions', () => {
     assert.equal(state.operations.available.includes('installationVictory'), false);
   });
 
-  test('operationMincemeat requires phase≥1 and date Apr 1943', () => {
+  test('operationMincemeat requires phase≥1 (date is a gate, not a trigger)', () => {
     const state = createInitialState();
     state.phase = 1;
-    state.date = { year: 1943, month: 4, day: 1 };
+    state.date = { year: 1941, month: 4, day: 1 };
     refreshAvailableOperations(state);
     assert.ok(state.operations.available.includes('operationMincemeat'));
   });
@@ -428,7 +436,7 @@ describe('war events and phase transitions', () => {
   test('operationMincemeat does not appear in phase 0', () => {
     const state = createInitialState();
     state.phase = 0;
-    state.date = { year: 1943, month: 4, day: 1 };
+    state.date = { year: 1941, month: 4, day: 1 };
     refreshAvailableOperations(state);
     assert.equal(state.operations.available.includes('operationMincemeat'), false);
   });
@@ -530,6 +538,8 @@ describe('affordability chain', () => {
       rotorLogicMapping:       CAP_CARD_EARLY,
       battleOfBritainIntel:    CAP_CARD_EARLY,
       afrikaKorpsSupplyTracked:CAP_CARD_EARLY,
+      battleOfCapeMatapan:     CAP_CARD_EARLY,
+      sinkingOfBismarck:       CAP_CARD_EARLY,
       wartimeRationing:        CAP_CARD_EARLY, // requires 3 boffins → player has cardIndexEarly
       conceptualizeBombe:      CAP_CARD_EARLY,
       turingMemorandum:        CAP_CARD_EARLY,
@@ -543,11 +553,15 @@ describe('affordability chain', () => {
       recruitmentFirstWrens:   CAP_INSTALL,
       operationMincemeat:      CAP_INSTALL,
       firstNavalEnigmaBreak:   CAP_INSTALL,
+      sharkBlackout:           CAP_INSTALL,
+      fourRotorBombe:          CAP_INSTALL,
       cardIndexFull:           CAP_INSTALL,    // buying uses pre-×20 cap
       battleOfAtlanticTide:    CAP_INSTALL,    // triggers after firstNavalEnigmaBreak, not cardIndexFull
+      colossusOperational:     CAP_INSTALL,    // triggers after battleOfAtlanticTide
 
       // Phase 1 war — post-cardIndexFull (cap = 600000)
       dDayIntelligence:        CAP_CARD_FULL,
+      ardennesOffensive:       CAP_CARD_FULL,
       veDay:                   CAP_CARD_FULL,
     };
 

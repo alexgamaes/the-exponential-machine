@@ -135,10 +135,14 @@ function renderStreams(state) {
 
 // ── Log ───────────────────────────────────────────────────────────────────────
 
+let _lastLogKey = '';
 function renderLog() {
   const el = document.getElementById('log');
   if (!el) return;
   const { a, b, canGoNewer, canGoOlder } = getLogWindow();
+  const key = `${a}|${b}|${canGoNewer}|${canGoOlder}`;
+  if (key === _lastLogKey) return;
+  _lastLogKey = key;
   el.innerHTML = `
     <div class="log-line${a ? '' : ' log-line-empty'}">${a ?? '— no events yet —'}</div>
     <div class="log-line${b ? '' : ' log-line-empty'}">${b ?? ''}</div>

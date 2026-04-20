@@ -10,6 +10,7 @@ import {
   buyInfrastructure 
 } from '../../src/systems/resources.js';
 import { UNITS } from '../../src/data/units.js';
+import { CONFIG } from '../../src/config.js';
 
 describe('systems/resources', () => {
 
@@ -42,31 +43,33 @@ describe('systems/resources', () => {
     test('night shift timer logic', () => {
       const state = createInitialState();
       state.upgrades.nightShiftUnlocked = true;
-      
+      const D = CONFIG.nightShiftDuration;
+      const C = CONFIG.nightShiftCooldown;
+
       // First tick should activate it
       tickResources(state, 1);
       assert.equal(state.upgrades.nightShiftActive, true);
-      assert.equal(state.upgrades.nightShiftTimer, 90);
-      
+      assert.equal(state.upgrades.nightShiftTimer, D);
+
       // Second tick should decrement it
       tickResources(state, 1);
-      assert.equal(state.upgrades.nightShiftTimer, 89);
-      
-      // Tick until it expires (needs 89 more)
-      tickResources(state, 89);
+      assert.equal(state.upgrades.nightShiftTimer, D - 1);
+
+      // Tick until it expires
+      tickResources(state, D - 1);
       assert.equal(state.upgrades.nightShiftActive, false);
-      assert.equal(state.upgrades.nightShiftCooldown, 600);
-      
-      // Tick cooldown
-      tickResources(state, 300);
+      assert.equal(state.upgrades.nightShiftCooldown, C);
+
+      // Tick halfway through cooldown
+      tickResources(state, C / 2);
       assert.equal(state.upgrades.nightShiftActive, false);
-      assert.equal(state.upgrades.nightShiftCooldown, 300);
-      
+      assert.equal(state.upgrades.nightShiftCooldown, C / 2);
+
       // Finish cooldown
-      tickResources(state, 300);
+      tickResources(state, C / 2);
       // When it reaches 0, it activates again
       assert.equal(state.upgrades.nightShiftActive, true);
-      assert.equal(state.upgrades.nightShiftTimer, 90);
+      assert.equal(state.upgrades.nightShiftTimer, D);
     });
 
     test('calculates supply used', () => {

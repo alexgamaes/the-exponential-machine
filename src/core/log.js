@@ -13,10 +13,10 @@ export function getLogWindow() {
     a: _entries[_offset] ?? null,
     b: _entries[_offset + 1] ?? null,
     canGoNewer: _offset > 0,
-    canGoOlder: _offset + 2 < _entries.length,
+    canGoOlder: _offset + 1 < _entries.length,
   };
 }
 
 export function scrollLog(delta) {
-  _offset = Math.max(0, Math.min(_entries.length - 2, _offset + delta));
+  _offset = Math.max(0, Math.min(_entries.length - 1, _offset + delta));
 }
