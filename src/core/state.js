@@ -1,16 +1,18 @@
+import { CONFIG } from '../config.js';
+
 export function createInitialState() {
   return {
     phase: 0,
 
     date: { year: 1939, month: 8, day: 15 },
-    dayTimer: 0,        // seconds elapsed toward next in-game day
-    dayDuration: 10,    // real seconds per in-game day
+    dayTimer: 0,
+    dayDuration: CONFIG.dayDuration,
 
     resources: {
       flops: 0,
       data: 0,
-      dataCap: 500,
-      supply: { used: 0, cap: 12 },
+      dataCap: CONFIG.initialDataCap,
+      supply: { used: 0, cap: CONFIG.initialSupplyCap },
       electricity: { used: 0, cap: 0 }, // activated in phase 1
     },
 
@@ -18,6 +20,9 @@ export function createInitialState() {
       juniorCalculator: { count: 0, baseCost: 10,   supplyPerUnit: 1 },
       boffin:           { count: 0, baseCost: 120,  supplyPerUnit: 3 },
       sectionHead:      { count: 0, baseCost: 250,  supplyPerUnit: 2 },
+      wren:             { count: 0, baseCost: 50,   supplyPerUnit: 1 },
+      cryptanalyst:     { count: 0, baseCost: 400,  supplyPerUnit: 2 },
+      indexer:          { count: 0, baseCost: 80,   supplyPerUnit: 1 },
     },
 
     huts: 0,
@@ -33,10 +38,10 @@ export function createInitialState() {
         description: 'Captured enemy message — crack it to earn Data',
         unlocked: true,
         blackout: false,
-        spaceBase: 300,
-        spaceCurrent: 300,
-        progress: 0,       // states cleared so far
-        rewardBase: 100,
+        spaceBase: CONFIG.armyEnigmaSpaceBase,
+        spaceCurrent: CONFIG.armyEnigmaSpaceBase,
+        progress: 0,
+        rewardBase: CONFIG.armyEnigmaRewardBase,
         dropCount: 0,
       },
       navalEnigma: {
@@ -45,10 +50,10 @@ export function createInitialState() {
         description: 'U-boat traffic — harder to break, earns 4× Data',
         unlocked: false,
         blackout: false,
-        spaceBase: 48000,
-        spaceCurrent: 48000,
+        spaceBase: CONFIG.navalEnigmaSpaceBase,
+        spaceCurrent: CONFIG.navalEnigmaSpaceBase,
         progress: 0,
-        rewardBase: 400,
+        rewardBase: CONFIG.navalEnigmaRewardBase,
         dropCount: 0,
       },
     },
@@ -65,6 +70,8 @@ export function createInitialState() {
       nightShiftActive: false,
       nightShiftTimer: 0,
       nightShiftCooldown: 0,
+      localPowerLine: 0,
+      dedicatedGenerator: 0,
     },
 
     multipliers: {
@@ -73,10 +80,12 @@ export function createInitialState() {
       dataPerDrop: 1,
       operationCost: 1,
       searchSpeed: 1,
+      bombeOutput: 1,
     },
 
     flags: {
       boffinsReduceOpCost: 0,   // count of boffins for cost reduction
+      bombeConceptualized: false,
     },
 
     stats: {
@@ -94,6 +103,7 @@ export function createInitialState() {
       showInfrastructure: false,// after recruitFirst50 completed
       showNavalStream: false,   // after formationHut8 completed
       showFooter: false,        // after first personnel hired
+      showHardware: false,      // after installationVictory completed
     },
   };
 }

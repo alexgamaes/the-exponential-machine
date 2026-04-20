@@ -320,6 +320,7 @@ header {
 .op-effect { font-size: 0.78rem; color: var(--dim); margin-bottom: 5px; }
 
 .op-cost { font-size: 0.78rem; color: var(--gold); }
+.op-gate { color: var(--red); }
 
 .op-type-tag {
   float: right;
@@ -334,6 +335,8 @@ header {
 .tag-intelligence { color: var(--red); }
 .tag-acquisition  { color: var(--gold); }
 .tag-crisis       { color: var(--orange); }
+.tag-warEvent     { color: var(--gold); border-color: var(--gold); }
+.war-event-card   { border-left: 2px solid var(--gold); }
 
 /* ── Footer ── */
 #footer {

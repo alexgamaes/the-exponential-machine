@@ -1,0 +1,7 @@
+{
+  "_note": "Faster pacing for quick balance checks — higher dropScale and timeScaleOffset",
+  "dropScale": 1.01,
+  "timeScaleOffset": 50,
+  "nightShiftDuration": 60,
+  "nightShiftCooldown": 300
+}

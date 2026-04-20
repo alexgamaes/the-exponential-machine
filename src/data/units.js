@@ -1,3 +1,5 @@
+import { CONFIG } from '../config.js';
+
 export const UNITS = {
   // ── Phase 0 Personnel ──────────────────────────────────────────────────────
 
@@ -23,8 +25,12 @@ export const UNITS = {
     stateKey: 'boffin',
     onBuy(state) {
       state.flags.boffinsReduceOpCost += 1;
-      state.multipliers.operationCost = Math.max(0.1,
-        state.multipliers.operationCost - 0.02);
+      if (state.personnel.boffin.count <= CONFIG.boffinCostReductionCap) {
+        state.multipliers.operationCost = Math.max(
+          CONFIG.operationCostFloor,
+          state.multipliers.operationCost - CONFIG.boffinCostReduction
+        );
+      }
     },
   },
 
@@ -39,6 +45,54 @@ export const UNITS = {
     stateKey: 'sectionHead',
     maxPerHut: 1,
     requiresUnlock: 'formationHut6',
+  },
+
+  // ── Phase 1 Personnel ──────────────────────────────────────────────────────
+
+  wren: {
+    id: 'wren',
+    label: 'Wren (Operator)',
+    phase: 1,
+    type: 'personnel',
+    flopsPerSec: 0,
+    supplyPerUnit: 1,
+    electricityPerUnit: 0.5,
+    description: 'Activates one Bombe',
+    stateKey: 'wren',
+    requiresUnlock: 'recruitmentFirstWrens',
+    baseCost: 50,
+  },
+
+  cryptanalyst: {
+    id: 'cryptanalyst',
+    label: 'Cryptanalyst',
+    phase: 1,
+    type: 'personnel',
+    flopsPerSec: 0,
+    supplyPerUnit: 2,
+    electricityPerUnit: 0,
+    description: '+3% search speed · diminishing after 10',
+    stateKey: 'cryptanalyst',
+    requiresUnlock: 'creationHut3',
+    baseCost: 400,
+  },
+
+  indexer: {
+    id: 'indexer',
+    label: 'Indexer',
+    phase: 1,
+    type: 'personnel',
+    flopsPerSec: 0,
+    supplyPerUnit: 1,
+    electricityPerUnit: 0,
+    description: '+500 Data Cap · +1% Data/Drop',
+    stateKey: 'indexer',
+    requiresUnlock: 'creationHut3',
+    baseCost: 80,
+    onBuy(state) {
+      state.resources.dataCap += 500;
+      state.multipliers.dataPerDrop *= 1.01;
+    },
   },
 };
 
@@ -70,6 +124,28 @@ export const INFRASTRUCTURE = {
     baseCost: 200,
     costScale: 2.0,
     description: '−15% Supply cost per person',
+    maxCount: 3,
+  },
+
+  // ── Phase 1 Infrastructure ──────────────────────────────────────────────────
+
+  localPowerLine: {
+    id: 'localPowerLine',
+    label: 'Local Power Line',
+    phase: 1,
+    baseCost: 1000,
+    costScale: 2.0,
+    description: '+50W Electricity Cap',
+    maxCount: 5,
+  },
+
+  dedicatedGenerator: {
+    id: 'dedicatedGenerator',
+    label: 'Dedicated Generator',
+    phase: 1,
+    baseCost: 5000,
+    costScale: 2.5,
+    description: '+200W Electricity Cap',
     maxCount: 3,
   },
 };

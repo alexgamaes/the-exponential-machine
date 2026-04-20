@@ -1,6 +1,7 @@
 import { OPERATIONS } from '../data/operations.js';
 import { log } from '../core/debug.js';
 import { pushLog } from '../core/log.js';
+import { CONFIG } from '../config.js';
 
 // ── Trigger evaluation ────────────────────────────────────────────────────────
 //
@@ -17,11 +18,19 @@ function triggerMet(trigger, state) {
       if (!completed.includes(id)) return false;
     }
   }
+  if (t.minPhase              !== undefined && state.phase                          < t.minPhase)              return false;
   if (t.minDrops              && state.stats.totalDrops                    < t.minDrops)              return false;
   if (t.minJuniorCalculators  && state.personnel.juniorCalculator.count    < t.minJuniorCalculators)  return false;
   if (t.minBoffins            && state.personnel.boffin.count              < t.minBoffins)            return false;
   if (t.minHuts               && state.huts                                < t.minHuts)               return false;
   if (t.minData               && state.resources.data                      < t.minData)               return false;
+
+  if (t.minDate) {
+    const d = state.date;
+    const dateOk = d.year > t.minDate.year
+                 || (d.year === t.minDate.year && d.month >= t.minDate.month);
+    if (!dateOk) return false;
+  }
 
   return true;
 }
@@ -46,12 +55,14 @@ export function getOperationCost(state, opId) {
   const op = OPERATIONS[opId];
   if (!op) return null;
 
-  const baseMult = state.multipliers.operationCost;
+  const baseMult = Math.max(CONFIG.operationCostFloor, state.multipliers.operationCost);
   const algoMult = op.type === 'algorithm' ? (state.flags.algorithmCostMult || 1) : 1;
+  const globalScale = CONFIG.opCostMultiplier ?? 1;
 
+  const baseCost = CONFIG.opBaseCosts?.[opId] ?? op.cost ?? {};
   return {
-    data:  Math.floor((op.cost.data  || 0) * baseMult * algoMult),
-    flops: Math.floor((op.cost.flops || 0) * baseMult * algoMult),
+    data:  Math.floor((baseCost.data  || 0) * globalScale * baseMult * algoMult),
+    flops: Math.floor((baseCost.flops || 0) * globalScale * baseMult * algoMult),
   };
 }
 
@@ -72,6 +83,10 @@ export function canExecuteOperation(state, opId) {
     return { can: false, reason: `Need ${gates.minBoffins} Boffins` };
   if (gates.minHuts && state.huts < gates.minHuts)
     return { can: false, reason: `Need ${gates.minHuts} Huts` };
+  if (gates.minBombes && state.hardware.bombes.count < gates.minBombes)
+    return { can: false, reason: `Need ${gates.minBombes} Bombes` };
+  if (gates.minIndexers && (state.personnel.indexer?.count || 0) < gates.minIndexers)
+    return { can: false, reason: `Need ${gates.minIndexers} Indexers` };
 
   return { can: true };
 }
@@ -89,7 +104,7 @@ export function executeOperation(state, opId) {
 
   op.effect(state);
 
-  if (op.result && !op.overlay) pushLog(`${op.label}: ${op.result}`);
+  if (op.result) pushLog(`${op.label}: ${op.result}`);
 
   state.operations.completed.push(opId);
   state.operations.available = state.operations.available.filter(id => id !== opId);
@@ -100,9 +115,20 @@ export function executeOperation(state, opId) {
   // Completing a node may satisfy triggers on other nodes — re-scan immediately
   refreshAvailableOperations(state);
 
-  if (op.overlay) state._pendingOverlay = op.overlay;
+  // Overlays only for dramatic phase-transition beats
+  if (op.overlay && op.isPhaseTransition) state._pendingOverlay = op.overlay;
 
   return true;
+}
+
+// Returns true if any available operation has a minDate trigger — meaning the
+// in-game date must pause until the player clears it.
+export function hasDateGatedPendingOp(state) {
+  for (const id of state.operations.available) {
+    const op = OPERATIONS[id];
+    if (op?.trigger?.minDate) return true;
+  }
+  return false;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

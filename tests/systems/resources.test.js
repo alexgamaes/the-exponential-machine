@@ -147,6 +147,50 @@ describe('systems/resources', () => {
     });
   });
 
+  describe('boffin operationCost cap', () => {
+    test('first 10 boffins each reduce operationCost by 2%', () => {
+      const state = createInitialState();
+      state.resources.data = 100000;
+      state.resources.supply.cap = 100;
+      // Buy 10 boffins — each costs more but supply is ample
+      for (let i = 0; i < 10; i++) buyUnit(state, 'boffin');
+      // Started at 1.0, each reduces by 0.02, floor 0.7: 1.0 - 10*0.02 = 0.8
+      assert.ok(Math.abs(state.multipliers.operationCost - 0.8) < 0.0001);
+      assert.equal(state.personnel.boffin.count, 10);
+    });
+
+    test('11th boffin does NOT reduce operationCost further', () => {
+      const state = createInitialState();
+      state.resources.data = 100000;
+      state.resources.supply.cap = 200;
+      for (let i = 0; i < 11; i++) buyUnit(state, 'boffin');
+      const costAfter10 = 0.8;
+      const costAfter11 = state.multipliers.operationCost;
+      assert.ok(Math.abs(costAfter11 - costAfter10) < 0.0001);
+    });
+
+    test('boffin 10 still reduces cost (boundary: count <= 10 check)', () => {
+      const state = createInitialState();
+      state.resources.data = 100000;
+      state.resources.supply.cap = 200;
+      // Pre-set count to 9 (simulate 9 already bought)
+      state.personnel.boffin.count = 9;
+      state.multipliers.operationCost = 0.82;
+      buyUnit(state, 'boffin'); // this is the 10th boffin (count becomes 10)
+      assert.ok(Math.abs(state.multipliers.operationCost - 0.8) < 0.0001);
+    });
+
+    test('boffin reductions cannot drop below 0.7 floor', () => {
+      const state = createInitialState();
+      state.resources.data = 100000;
+      state.resources.supply.cap = 200;
+      state.multipliers.operationCost = 0.71;
+      state.personnel.boffin.count = 0; // first boffin, −0.02 would go to 0.69
+      buyUnit(state, 'boffin');
+      assert.equal(state.multipliers.operationCost, 0.7);
+    });
+  });
+
   describe('infrastructure', () => {
     test('getInfrastructureCost scales', () => {
       const state = createInitialState();

@@ -8,11 +8,12 @@ import {
   exportSaveFile,
   importSaveFile
 } from './save.js';
-import { tickResources, buyUnit, buyInfrastructure } from '../systems/resources.js';
+import { tickResources, buyUnit, buyInfrastructure, buyBombe, getBombeCost } from '../systems/resources.js';
 import { tickSearch, handleComputeClick } from '../systems/search.js';
-import { executeOperation, refreshAvailableOperations } from '../systems/operations.js';
+import { executeOperation, refreshAvailableOperations, hasDateGatedPendingOp } from '../systems/operations.js';
 import { render, updateUIFlags } from '../ui/render.js';
 import { isDev, log } from './debug.js';
+import { CONFIG } from '../config.js';
 import { scrollLog } from './log.js';
 
 const SAVE_INTERVAL = 15; // seconds between auto-saves
@@ -31,6 +32,45 @@ function init() {
     for (const key of Object.keys(defaults)) {
       if (saved[key] === undefined) saved[key] = defaults[key];
     }
+    // Migrate nested personnel — add new unit types missing from old saves
+    const defaultP = defaults.personnel;
+    for (const key of Object.keys(defaultP)) {
+      if (!saved.personnel[key]) saved.personnel[key] = defaultP[key];
+    }
+    // Migrate nested upgrades
+    const defaultU = defaults.upgrades;
+    for (const key of Object.keys(defaultU)) {
+      if (saved.upgrades[key] === undefined) saved.upgrades[key] = defaultU[key];
+    }
+    // Migrate multipliers
+    const defaultM = defaults.multipliers;
+    for (const key of Object.keys(defaultM)) {
+      if (saved.multipliers[key] === undefined) saved.multipliers[key] = defaultM[key];
+    }
+    // Migrate ui flags
+    const defaultUI = defaults.ui;
+    for (const key of Object.keys(defaultUI)) {
+      if (saved.ui[key] === undefined) saved.ui[key] = defaultUI[key];
+    }
+    // Migrate flags (new keys added in later versions)
+    if (!saved.flags) saved.flags = {};
+    const defaultF = defaults.flags;
+    for (const key of Object.keys(defaultF)) {
+      if (saved.flags[key] === undefined) saved.flags[key] = defaultF[key];
+    }
+    // Plan 07: grandfather unit/infra unlocks for saves from before starter-gating
+    if (saved.personnel.boffin.count > 0 && !saved.operations.completed.includes('recruitMathematicians'))
+      saved.operations.completed.push('recruitMathematicians');
+    if (saved.upgrades.canteenExpansion > 0 && !saved.operations.completed.includes('messHallConstructed'))
+      saved.operations.completed.push('messHallConstructed');
+    if (saved.upgrades.coffeeRationing > 0 && !saved.operations.completed.includes('wartimeRationing'))
+      saved.operations.completed.push('wartimeRationing');
+    // Plan 08: set bombeConceptualized for saves that had completed conceptualizeBombe
+    if (saved.operations.completed.includes('conceptualizeBombe') && !saved.flags.bombeConceptualized)
+      saved.flags.bombeConceptualized = true;
+    // cardIndexEarly target raised to ×10 (cap=5000) — patch saves that got old ×5 or ×8 values
+    if (saved.operations.completed.includes('cardIndexEarly') && saved.resources.dataCap < 5000)
+      saved.resources.dataCap = 5000;
   }
   state = saved || createInitialState();
 
@@ -69,7 +109,9 @@ function tick(timestamp) {
 }
 
 function tickDate(state, delta) {
-  state.dayTimer += delta;
+  if (hasDateGatedPendingOp(state)) return;
+  const timeScale = Math.log10((state._flopsPerSec || 0) + CONFIG.timeScaleOffset);
+  state.dayTimer += delta * timeScale;
   if (state.dayTimer >= state.dayDuration) {
     state.dayTimer -= state.dayDuration;
     advanceDay(state);
@@ -127,10 +169,12 @@ function bindEvents() {
     const opEl    = e.target.closest('[data-op-id]');
     const unitEl  = e.target.closest('[data-buy-unit]');
     const infraEl = e.target.closest('[data-buy-infra]');
-    log('resolved → op:', opEl?.dataset.opId, 'unit:', unitEl?.dataset.buyUnit, 'infra:', infraEl?.dataset.buyInfra);
+    const hwEl    = e.target.closest('[data-buy-hardware]');
+    log('resolved → op:', opEl?.dataset.opId, 'unit:', unitEl?.dataset.buyUnit, 'infra:', infraEl?.dataset.buyInfra, 'hw:', hwEl?.dataset.buyHardware);
     if (opEl)    { const ok = executeOperation(state, opEl.dataset.opId);    log('executeOperation:', opEl.dataset.opId, '→', ok); }
     if (unitEl)  { const ok = buyUnit(state, unitEl.dataset.buyUnit);         log('buyUnit:', unitEl.dataset.buyUnit, '→', ok); }
     if (infraEl) { const ok = buyInfrastructure(state, infraEl.dataset.buyInfra); log('buyInfra:', infraEl.dataset.buyInfra, '→', ok); }
+    if (hwEl && hwEl.dataset.buyHardware === 'bombe') { const ok = buyBombe(state); log('buyBombe →', ok); }
   });
 
   // Overlay dismiss

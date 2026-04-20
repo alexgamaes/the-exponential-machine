@@ -1,6 +1,6 @@
 import { OPERATIONS } from '../data/operations.js';
 import { UNITS, INFRASTRUCTURE } from '../data/units.js';
-import { getUnitCost, canAffordUnit, getInfrastructureCost } from '../systems/resources.js';
+import { getUnitCost, canAffordUnit, getInfrastructureCost, getBombeCost, buyBombe } from '../systems/resources.js';
 import { getOperationCost, canExecuteOperation } from '../systems/operations.js';
 import { DROP_SCALE } from '../systems/search.js';
 import { getLogWindow } from '../core/log.js';
@@ -18,6 +18,7 @@ export function updateUIFlags(state) {
   if (state.operations.completed.includes('formationHut8'))         state.ui.showNavalStream = true;
   if (state.personnel.juniorCalculator.count > 0 ||
       state.personnel.boffin.count > 0)                             state.ui.showFooter = true;
+  if (state.operations.completed.includes('installationVictory'))   state.ui.showHardware = true;
 }
 
 // ── Main render entry ─────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ export function render(state) {
   renderFlopsRate(state);
   renderStreams(state);
   if (state.ui.showPersonnel)     renderPersonnel(state);
+  if (state.ui.showHardware)      renderHardware(state);
   if (state.ui.showInfrastructure) renderInfrastructure(state);
   renderLog();
   if (state.ui.showOperations)    renderOperations(state);
@@ -59,6 +61,11 @@ function renderResources(state) {
 
     const s = state.resources.supply;
     html += `<div class="resource-line">Billets <b>${s.used} / ${s.cap}</b></div>`;
+
+    if (state.resources.electricity.cap > 0) {
+      const e = state.resources.electricity;
+      html += `<div class="resource-line">Watts &nbsp;&nbsp;<b>${Math.ceil(e.used)}W / ${e.cap}W</b></div>`;
+    }
   }
 
   el.innerHTML = html;
@@ -144,11 +151,12 @@ function renderLog() {
 // ── Operations ────────────────────────────────────────────────────────────────
 
 const TYPE_TAG = {
-  algorithm: 'ALGO',
+  algorithm:     'ALGO',
   infrastructure: 'INFRA',
-  intelligence: 'INTEL',
-  acquisition: 'ACQN',
-  crisis: 'CRISIS',
+  intelligence:  'INTEL',
+  acquisition:   'ACQN',
+  crisis:        'CRISIS',
+  warEvent:      'WAR',
 };
 
 function renderOperations(state) {
@@ -162,18 +170,19 @@ function renderOperations(state) {
     if (!op) continue;
 
     const cost = getOperationCost(state, opId);
-    const { can } = canExecuteOperation(state, opId);
+    const { can, reason } = canExecuteOperation(state, opId);
     const tag = TYPE_TAG[op.type] || op.type;
     const effectText = op.result ? op.result.replace(/\n/g, ' · ') : '';
+    const isGateBlocked = !can && reason && !/\b(Data|FLOPs)\b/.test(reason);
 
     html += `
-      <div class="op${can ? '' : ' unaffordable'}" data-op-id="${opId}">
+      <div class="op${can ? '' : ' unaffordable'}${op.type === 'warEvent' ? ' war-event-card' : ''}" data-op-id="${opId}">
         <div class="op-name">
           <span class="op-type-tag tag-${op.type}">${tag}</span>
           ${op.label}
         </div>
         ${effectText ? `<div class="op-effect">${effectText}</div>` : ''}
-        <div class="op-cost">${formatCost(cost)}</div>
+        <div class="op-cost">${formatCost(cost)}${isGateBlocked ? ` · <span class="op-gate">${reason}</span>` : ''}</div>
       </div>`;
   }
 
@@ -185,33 +194,113 @@ function renderOperations(state) {
 function renderPersonnel(state) {
   const el = document.getElementById('personnel');
   const supplyFree = state.resources.supply.cap - state.resources.supply.used;
+  const elecFree = state.resources.electricity.cap - state.resources.electricity.used;
   let html = `<div class="section-label">Personnel</div>`;
 
-  html += unitRow(state, 'juniorCalculator', supplyFree);
-  html += unitRow(state, 'boffin', supplyFree);
+  html += unitRow(state, 'juniorCalculator', supplyFree, elecFree);
+  if (state.operations.completed.includes('recruitMathematicians')) {
+    html += unitRow(state, 'boffin', supplyFree, elecFree);
+  }
 
   if (state.operations.completed.includes('formationHut6')) {
-    html += unitRow(state, 'sectionHead', supplyFree);
+    html += unitRow(state, 'sectionHead', supplyFree, elecFree);
+  }
+
+  if (state.operations.completed.includes('recruitmentFirstWrens')) {
+    html += unitRow(state, 'wren', supplyFree, elecFree);
+  }
+  if (state.operations.completed.includes('creationHut3')) {
+    html += unitRow(state, 'cryptanalyst', supplyFree, elecFree);
+    html += unitRow(state, 'indexer', supplyFree, elecFree);
   }
 
   el.innerHTML = html;
 }
 
-function unitRow(state, unitId, supplyFree) {
+function unitRow(state, unitId, supplyFree, elecFree = Infinity) {
   const unit = UNITS[unitId];
   const su = state.personnel[unitId];
   const cost = getUnitCost(state, unitId);
-  const canBuy = state.resources.data >= cost && supplyFree >= unit.supplyPerUnit;
+  const elecPerUnit = unit.electricityPerUnit || 0;
+  const canBuy = state.resources.data >= cost
+    && supplyFree >= unit.supplyPerUnit
+    && (elecPerUnit === 0 || elecFree >= elecPerUnit);
 
+  const metaExtra = elecPerUnit > 0 ? ` · ${elecPerUnit}W` : '';
   return `
     <div class="unit">
       <div>
         <div class="unit-name">${unit.label}</div>
-        <div class="unit-meta">${unit.description} · ${unit.supplyPerUnit} Billets · ${fmt(cost)} Data</div>
+        <div class="unit-meta">${unit.description} · ${unit.supplyPerUnit} Billets${metaExtra} · ${fmt(cost)} Data</div>
       </div>
       <span class="unit-count">${su.count}</span>
       <button class="btn-buy" data-buy-unit="${unitId}" ${canBuy ? '' : 'disabled'}>BUY</button>
     </div>`;
+}
+
+// ── Hardware (Phase 1) ────────────────────────────────────────────────────────
+
+function renderHardware(state) {
+  const el = document.getElementById('hardware');
+  if (!el) return;
+  const b = state.hardware.bombes;
+  const bombeCost = getBombeCost(state);
+  const elecFree = state.resources.electricity.cap - state.resources.electricity.used;
+  const canBuyBombe = state.phase >= 1
+    && state.resources.electricity.cap > 0
+    && state.resources.data >= bombeCost
+    && elecFree >= 5;
+  const bombeBlockReason = state.phase < 1 ? 'Requires Turing\'s Memorandum' : null;
+
+  let html = `<div class="section-label">Hardware</div>`;
+
+  html += `
+    <div class="unit">
+      <div>
+        <div class="unit-name">Bombe</div>
+        <div class="unit-meta">
+          ${b.running} / ${b.count} running · ${fmt(Math.floor(state._bombeStatesPerSec || 0))} states/sec · 5W each · ${fmt(bombeCost)} Data
+          ${bombeBlockReason ? `· <span class="op-gate">${bombeBlockReason}</span>` : ''}
+        </div>
+      </div>
+      <span class="unit-count">${b.count}</span>
+      <button class="btn-buy" data-buy-hardware="bombe" ${canBuyBombe ? '' : 'disabled'}>BUY</button>
+    </div>`;
+
+  // Electricity infrastructure
+  if (state.phase >= 1) {
+    const lpCost = getInfrastructureCost(state, 'localPowerLine');
+    const lpCount = state.upgrades.localPowerLine;
+    const lpMaxed = lpCount >= INFRASTRUCTURE.localPowerLine.maxCount;
+    const canBuyLp = !lpMaxed && state.resources.data >= lpCost;
+
+    html += `
+      <div class="unit">
+        <div>
+          <div class="unit-name">${INFRASTRUCTURE.localPowerLine.label}</div>
+          <div class="unit-meta">${INFRASTRUCTURE.localPowerLine.description} · ${lpMaxed ? 'maxed' : fmt(lpCost) + ' Data'}</div>
+        </div>
+        <span class="unit-count">${lpCount}</span>
+        <button class="btn-buy" data-buy-infra="localPowerLine" ${canBuyLp ? '' : 'disabled'}>BUY</button>
+      </div>`;
+
+    const dgCost = getInfrastructureCost(state, 'dedicatedGenerator');
+    const dgCount = state.upgrades.dedicatedGenerator;
+    const dgMaxed = dgCount >= INFRASTRUCTURE.dedicatedGenerator.maxCount;
+    const canBuyDg = !dgMaxed && state.resources.data >= dgCost;
+
+    html += `
+      <div class="unit">
+        <div>
+          <div class="unit-name">${INFRASTRUCTURE.dedicatedGenerator.label}</div>
+          <div class="unit-meta">${INFRASTRUCTURE.dedicatedGenerator.description} · ${dgMaxed ? 'maxed' : fmt(dgCost) + ' Data'}</div>
+        </div>
+        <span class="unit-count">${dgCount}</span>
+        <button class="btn-buy" data-buy-infra="dedicatedGenerator" ${canBuyDg ? '' : 'disabled'}>BUY</button>
+      </div>`;
+  }
+
+  el.innerHTML = html;
 }
 
 // ── Infrastructure ────────────────────────────────────────────────────────────
@@ -221,8 +310,12 @@ function renderInfrastructure(state) {
   let html = `<div class="section-label">Infrastructure</div>`;
 
   html += infraRow(state, 'hut');
-  html += infraRow(state, 'canteenExpansion');
-  html += infraRow(state, 'coffeeRationing');
+  if (state.operations.completed.includes('messHallConstructed')) {
+    html += infraRow(state, 'canteenExpansion');
+  }
+  if (state.operations.completed.includes('wartimeRationing')) {
+    html += infraRow(state, 'coffeeRationing');
+  }
 
   const u = state.upgrades;
   if (u.nightShiftUnlocked) {
@@ -268,8 +361,14 @@ function renderFooter(state) {
   const fps = state._flopsPerSec || 0;
   const baseline = state.stats.phase0BaselineFlops;
   const mult = (fps / baseline).toFixed(1);
-  document.getElementById('system-specs').innerHTML =
-    `<b>${fmt(Math.floor(fps))}</b> FLOPs/sec — <b>${mult}×</b> Phase 0 baseline`;
+  let specHtml;
+  if (state.phase >= 1) {
+    const bss = state._bombeStatesPerSec || 0;
+    specHtml = `<b>${fmt(Math.floor(bss))}</b> states/sec (Bombe) — <b>${fmt(Math.floor(fps))}</b> FLOPs/sec — <b>${mult}×</b> Phase 0 baseline`;
+  } else {
+    specHtml = `<b>${fmt(Math.floor(fps))}</b> FLOPs/sec — <b>${mult}×</b> Phase 0 baseline`;
+  }
+  document.getElementById('system-specs').innerHTML = specHtml;
   document.getElementById('footer').classList.remove('hidden');
 }
 

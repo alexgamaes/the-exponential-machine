@@ -46,8 +46,8 @@ describe('systems/search', () => {
     assert.equal(state.stats.totalData, 100);
     assert.equal(state.stats.totalDrops, 1);
     
-    // next space: spaceBase(300) * DROP_SCALE(1.08)^dropCount(1) = 324
-    assert.equal(state.streams.armyEnigma.spaceCurrent, 324);
+    // next space: spaceBase(300) * DROP_SCALE(1.02)^dropCount(1) = 306
+    assert.equal(state.streams.armyEnigma.spaceCurrent, 306);
     assert.ok(state._lastDrop);
   });
 
