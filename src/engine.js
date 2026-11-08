@@ -61,7 +61,7 @@ function upgradeEffects(s) {
   };
   if (s.goalDone && st.goal.effect) apply(st.goal.effect);
   for (const u of st.upgrades) {
-    if (!s.bought[u.id]) continue;
+    if (!(u.id in s.bought)) continue;
     if (u.effect.type === 'choice') {
       const opt = u.effect.options.find(o => o.id === s.choices[u.id]);
       if (opt) apply(opt.effect);
@@ -111,7 +111,7 @@ function conditionMet(s, c) {
   if (c.lifetime !== undefined && s.lifetime < c.lifetime) return false;
   if (c.clicks !== undefined && s.clicks < c.clicks) return false;
   if (c.rate !== undefined && getRate(s) < c.rate) return false;
-  if (c.upgrade !== undefined && !s.bought[c.upgrade]) return false;
+  if (c.upgrade !== undefined && !(c.upgrade in s.bought)) return false;
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) if ((s.producers[id] || 0) < n) return false;
   if (c.after !== undefined) {
     const t = s.bought[c.after];
@@ -134,11 +134,11 @@ export function conditionProgress(s, c) {
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) {
     if ((s.producers[id] || 0) < n) {
       const p = st.producers.find(x => x.id === id);
-      return { kind: 'owned', phrase: `${p.verb} ${n} ${p.short}`, unitLabel: p.short,
+      return { kind: 'owned', target: id, phrase: `${p.verb} ${n} ${p.short}`, unitLabel: p.short,
                have: s.producers[id] || 0, need: n };
     }
   }
-  if (c.upgrade !== undefined && !s.bought[c.upgrade]) {
+  if (c.upgrade !== undefined && !(c.upgrade in s.bought)) {
     const u = st.upgrades.find(x => x.id === c.upgrade);
     return { kind: 'upgrade', phrase: `Buy "${u.name}"`, unitLabel: '', have: 0, need: 1 };
   }
@@ -169,7 +169,7 @@ export function upgradeById(s, id) { return stageData(s).upgrades.find(u => u.id
 
 export function canBuyUpgrade(s, id) {
   const u = upgradeById(s, id);
-  return !!u && isActive(s) && s.revealed[id] !== undefined && !s.bought[id] && s.ops >= u.cost;
+  return !!u && isActive(s) && s.revealed[id] !== undefined && !(id in s.bought) && s.ops >= u.cost;
 }
 
 export function buyUpgrade(s, id, optionId) {
@@ -266,7 +266,7 @@ export function tick(s, dt) {
 function revealUpgrades(s) {
   const st = stageData(s);
   if (s.time - s.lastRevealAt < CONFIG.revealGapSec) return;
-  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]).length;
+  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought)).length;
   if (open >= CONFIG.maxOpenUpgrades) return;
   // Reveal the first upgrade (in data order) whose condition is met.
   for (const u of st.upgrades) {
@@ -320,23 +320,23 @@ export function currentGoal(s) {
   if (s.phase === 'finale') {
     const f = currentFinale(s);
     if (!f) return null;
-    if (s.ops >= f.cost) return { text: f.name, ready: true, have: 1, need: 1 };
+    if (s.ops >= f.cost) return { text: f.name, kind: 'ready', ready: true, have: 1, need: 1 };
     return { text: `Save up for "${f.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: f.cost, eta: true };
   }
   if (s.phase !== 'playing') return null;
-  if (canBuyGoal(s)) return { text: st.goal.name, ready: true, have: 1, need: 1 };
-  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]);
+  if (canBuyGoal(s)) return { text: st.goal.name, kind: 'ready', ready: true, have: 1, need: 1 };
+  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought));
   const affordable = open.find(u => s.ops >= u.cost);
-  if (affordable) return { text: `Buy "${affordable.name}"`, ready: true, have: 1, need: 1 };
+  if (affordable) return { text: `Buy "${affordable.name}"`, kind: 'ready', ready: true, have: 1, need: 1 };
   const saving = open.sort((a, b) => a.cost - b.cost)[0];
   if (saving) return { text: `Save up for "${saving.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: saving.cost, eta: true };
   const nl = nextLocked(s);
   if (nl && nl.progress) {
     const p = nl.progress;
-    return { text: `${p.phrase} to unlock "${nl.upgrade.name}"`, kind: p.kind, unitLabel: p.unitLabel,
+    return { text: `${p.phrase} to unlock "${nl.upgrade.name}"`, kind: p.kind, target: p.target, unitLabel: p.unitLabel,
              have: p.have, need: p.need, eta: p.kind === 'lifetime' };
   }
-  if (nl) return { text: `"${nl.upgrade.name}" is coming`, ready: true, have: 1, need: 1 };
+  if (nl) return { text: `"${nl.upgrade.name}" is coming`, kind: 'ready', ready: true, have: 1, need: 1 };
   return { text: `Check ${fmtInt(st.goal.lifetime)} guesses in total to ${st.goal.name.toLowerCase()}`,
            kind: 'lifetime', unitLabel: 'in total', have: s.lifetime, need: st.goal.lifetime, eta: true };
 }

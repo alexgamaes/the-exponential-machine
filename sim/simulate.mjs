@@ -137,7 +137,7 @@ function decide(s, choice, ev, greedy = false) {
     const cost = E.producerCost(s, best.id);
     // save for an upgrade (or the goal) that is close
     const eff = E.effectiveRate(s);
-    const targets = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]).map(u => u.cost);
+    const targets = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought)).map(u => u.cost);
     const fin = E.currentFinale(s); if (fin) targets.push(fin.cost);
     const near = targets.filter(c => c > s.ops && c < s.ops + eff * SAVE_HORIZON);
     if (near.length && !greedy) return; // something worth having is less than SAVE_HORIZON away: save for it

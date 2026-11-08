@@ -113,3 +113,66 @@ hide it when it is over 1 hour.
 - `ui.js`: "You have" caption, `#total` line, stage meter label/title, merged team line using `getRate`,
   ETA throttled to 1 Hz, locked card cost, producer "checks per second".
 - `index.html` / `style.css`: `#total` element, caption, mobile rule for `#goal-nums`.
+
+---
+
+## (d) Goal bar kinds
+
+**Decision:** keep all the kinds, because each is the real next step and hiding count goals on the
+locked card would break "always a visible next goal". Instead, give **each kind a fixed identity**
+(tag, colour and bar texture) and play a **visible hand-over** when the kind changes. Colour is never
+the only cue: every kind also has a word tag and a bar texture, which keeps it colour-blind safe.
+
+| `kind` | Tag (replaces "Next:") | Bar texture | Light `--k` | Dark `--k` |
+|---|---|---|---|---|
+| `balance` | `SAVE UP` | solid | `#9b1c1c` red ink | `#ff9180` |
+| `lifetime` | `IN TOTAL` | solid + diagonal hatch | `#1f3f8f` blue ink | `#8fb4ff` |
+| `owned` | `TEAM` | segmented, one block per clerk/machine | `#8a4b00` brown | `#f2b45a` |
+| `clicks` | `BY HAND` | segmented | `#5b2a86` purple | `#c9a2f0` |
+| `ready` | `READY` | solid, full | `#1d5c2a` green (`--ok`) | `#8fd19e` |
+
+All five colours give ≥ 4.5:1 against `--bar-bg` and `--surface` in their theme. Goal **text stays
+`--text`** (pure black in light mode). Colour appears only on the tag, the bar fill and one outline.
+- **Tag:** pill, `background: var(--k)`, text `--k-on` (`#ffffff` in light mode, `#0f1520` in dark mode), 0.75rem,
+  weight 700, letter-spacing 0.06em, padding 0.1rem 0.45rem, fixed `min-width: 6.5rem` so the goal text
+  does not shift when the tag changes.
+- **Hatch:** `background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgb(255 255 255 / .35) 4px 6px)`
+  over the fill (dark theme: `rgb(0 0 0 / .35)`).
+- **Segments** (only when `need ≤ 20`, else solid): on `.bar`, `--segments: <need>` and
+  `background-image: repeating-linear-gradient(90deg, transparent 0 calc(100%/var(--segments) - 2px), var(--bg) 0 calc(100%/var(--segments)))`
+  as a mask layer over the fill, so "7 of 10 clerks" visibly reads as 7 blocks of 10.
+
+**Same colour everywhere for a quantity.** A 0.6rem square in the kind colour sits before the
+"You have" caption (red) and the "Checked in total" line (blue). When the kind is `owned`, the
+matching Hire/Build button gets a 2px `--k` outline for as long as that goal is active. The player
+learns "blue = in total" once and then sees it in both places.
+
+**Transition when the kind changes** (only when `kind` changes; a new target of the same kind keeps the
+current 400 ms flash, re-coloured to an outline in `--k` instead of turning the fill green):
+1. 0–180 ms: the old fill drains to 0 (`width` transition 180 ms ease-in), and the old tag and numbers fade to 0.
+2. At 180 ms: swap the kind attribute, tag text, goal text and numbers. Set the fill width to 0 with no transition.
+3. 180–330 ms: the new tag pops in (`scale .85 → 1`, opacity 0 → 1, 150 ms ease-out), and the whole
+   `#goal` gets `box-shadow: 0 0 0 2px var(--k)` for 700 ms, which says "this bar now measures something else".
+4. 200–650 ms: the fill grows from 0 to its real value (`width` 450 ms ease-out).
+The total time is under 0.7 s and never blocks input. `aria-live` announces only the new goal text.
+Going *to* `ready` skips the drain: the fill runs to 100% in 200 ms and the tag becomes `READY`.
+
+**`prefers-reduced-motion`:** no drain, grow or scale. Swap everything instantly and keep the static
+2px outline for 700 ms (a colour change, not motion). This is already covered by the global
+`transition: none` rule, plus the outline class.
+
+**Code changes**
+- `engine.js` `currentGoal()`: always return a `kind`. Set `kind: 'ready'` on the three `ready: true`
+  returns. Nothing else changes.
+- `index.html`: replace `<span class="goal-label">Next:</span>` with `<span id="goal-tag" class="goal-tag"></span>`.
+  Add a `<span class="swatch">` before the "You have" caption and before `#total`.
+- `ui.js` goal bar: keep `lastKind`. If `goal.kind !== lastKind`, add `.switching` to `#goal`
+  (CSS drains the fill and fades the tag), and after 180 ms set `document.body.dataset.goalKind = kind` (on `body`, so `--k` also reaches the producer buttons), update
+  the tag, text and numbers, force the fill to 0, then on the next frame remove `.switching`, add
+  `.kind-changed` (outline) and set the real width. Remove `.kind-changed` after 700 ms. While `.switching`
+  is on, skip the per-frame text and fill updates. Set `--segments` on `#goal .bar` when kind is
+  `owned`/`clicks` and `need ≤ 20`. Toggle `.goal-target` on the matching producer button.
+- `style.css`: `body[data-goal-kind="balance"]{--k:…;--k-on:…}` … per theme (inside the existing three theme blocks). Add
+  `.goal-tag`, `#goal .bar > div{background:var(--k)}`, `[data-goal-kind="lifetime"]` hatch, segment mask,
+  `.switching`, `.kind-changed`, and `.goal-target{outline:2px solid var(--k)}`. Change `#goal.flash` to an
+  outline in `--k` (green fill now means `ready` only).

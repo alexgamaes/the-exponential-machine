@@ -51,34 +51,13 @@ export function render(s) {
   if ($('stage-meter').title !== meterTitle) $('stage-meter').title = meterTitle;
 
   // goal bar
-  const goal = E.currentGoal(s);
-  show($('goal'), !!goal);
-  if (goal) {
-    set($('goal-text'), goal.text);
-    let nums;
-    if (goal.ready) nums = 'Ready';
-    else if (goal.kind === 'balance') nums = `You have ${fmt(goal.have)} of ${fmt(goal.need)} ${goal.unitLabel}`;
-    else nums = `${fmt(goal.have)} of ${fmt(goal.need)} ${goal.unitLabel}`;
-    // ETA: recomputed once per second, rounded, hidden when over an hour.
-    const now = performance.now();
-    if (now - etaAt > 1000 || goal.text !== lastGoalText) {
-      etaAt = now;
-      const sec = (goal.need - goal.have) / Math.max(eff, 1e-9);
-      etaText = goal.eta && !goal.ready && eff > 0 && sec < 3600 ? `  ·  ~${fmtApprox(sec)}` : '';
-    }
-    set($('goal-nums'), nums + etaText);
-    fill($('goal-fill'), goal.ready ? 1 : goal.have / goal.need);
-    if (goal.text !== lastGoalText) {
-      if (lastGoalText) { $('goal').classList.add('flash'); setTimeout(() => $('goal').classList.remove('flash'), 400); }
-      lastGoalText = goal.text;
-    }
-  }
+  renderGoal(E.currentGoal(s), eff);
 
   // core
   set($('ops'), fmt(s.ops));
   set($('unit'), st.unit);
   show($('total'), s.lifetime > s.ops + 0.5);
-  set($('total'), `Checked in total: ${fmt(s.lifetime)}`);
+  set($('total-text'), `Checked in total: ${fmt(s.lifetime)}`);
   show($('rate'), s.clicks > 0 || rate > 0);
   set($('rate'), `+${fmt(rate, 1)} per second   ·   +${fmt(clickValue, 1)} per click`);
   // Team line: team speed only (no clicks), rounded, so it changes only when you buy something.
@@ -131,7 +110,7 @@ export function render(s) {
   }
 
   // upgrades
-  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]);
+  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought));
   const locked = E.nextLocked(s);
   show($('upgrades'), (open.length > 0 || Object.keys(s.revealed).length > 0) && E.isActive(s));
   const list = $('upgrade-list');
@@ -172,6 +151,91 @@ export function render(s) {
   if (s.phase === 'next') set($('legacy-rate'), `${fmt(s.legacyRate, 1)} ${st.unit} per second`);
 
   renderLog(s);
+}
+
+// ---------- goal bar ----------
+// Each goal kind has a fixed identity (tag + colour + bar texture, see design/03b §d).
+// When the kind changes, the bar drains, swaps, and refills, so the switch is visible.
+const TAGS = { balance: 'SAVE UP', lifetime: 'IN TOTAL', owned: 'TEAM', clicks: 'BY HAND', ready: 'READY' };
+let goalKind = null, goalSwitching = false;
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function goalNums(goal, eff) {
+  let nums;
+  if (goal.ready) nums = 'Ready';
+  else if (goal.kind === 'balance') nums = `You have ${fmt(goal.have)} of ${fmt(goal.need)} ${goal.unitLabel}`;
+  else nums = `${fmt(goal.have)} of ${fmt(goal.need)} ${goal.unitLabel}`;
+  const now = performance.now();
+  if (now - etaAt > 1000 || goal.text !== lastGoalText) {
+    etaAt = now;
+    const sec = (goal.need - goal.have) / Math.max(eff, 1e-9);
+    etaText = goal.eta && !goal.ready && eff > 0 && sec < 3600 ? `  ·  ~${fmtApprox(sec)}` : '';
+  }
+  return nums + etaText;
+}
+
+function applyGoal(goal, eff) {
+  const box = $('goal');
+  set($('goal-tag'), TAGS[goal.kind] || '');
+  set($('goal-text'), goal.text);
+  set($('goal-nums'), goalNums(goal, eff));
+  const bar = box.querySelector('.bar');
+  const segmented = (goal.kind === 'owned' || goal.kind === 'clicks') && goal.need <= 20;
+  toggle(bar, 'segmented', segmented);
+  if (segmented) bar.style.setProperty('--segments', goal.need);
+  // outline the producer button the TEAM goal is about
+  for (const [id, el] of prodEls) toggle(el.btn, 'goal-target', goal.kind === 'owned' && goal.target === id);
+}
+
+function renderGoal(goal, eff) {
+  const box = $('goal');
+  show(box, !!goal);
+  if (!goal || goalSwitching) return;
+  const fillEl = $('goal-fill');
+  const frac = goal.ready ? 1 : goal.have / goal.need;
+
+  if (goal.kind !== goalKind) {
+    const first = goalKind === null;
+    const toReady = goal.kind === 'ready';
+    goalKind = goal.kind;
+    lastGoalText = goal.text;
+    if (first || reducedMotion() || toReady) {
+      document.body.dataset.goalKind = goal.kind;
+      applyGoal(goal, eff);
+      fill(fillEl, frac);
+      if (!first) outline(box);
+      return;
+    }
+    // 1) drain the old bar and fade the old tag, 2) swap, 3) pop the new tag and refill.
+    goalSwitching = true;
+    box.classList.add('switching');
+    fill(fillEl, 0);
+    setTimeout(() => {
+      document.body.dataset.goalKind = goal.kind;
+      applyGoal(goal, eff);
+      box.classList.remove('switching');
+      box.classList.add('refill');
+      outline(box);
+      requestAnimationFrame(() => {
+        fill(fillEl, frac);
+        setTimeout(() => box.classList.remove('refill'), 500);
+        goalSwitching = false;
+      });
+    }, 180);
+    return;
+  }
+
+  applyGoal(goal, eff);
+  fill(fillEl, frac);
+  if (goal.text !== lastGoalText) { lastGoalText = goal.text; outline(box); }
+}
+
+function outline(box) {
+  box.classList.remove('kind-changed');
+  void box.offsetWidth; // restart
+  box.classList.add('kind-changed');
+  clearTimeout(outline.t);
+  outline.t = setTimeout(() => box.classList.remove('kind-changed'), 700);
 }
 
 // One persistent "milestone" card reused for Build Colossus and the finale actions.

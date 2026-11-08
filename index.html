@@ -32,7 +32,7 @@
 
   <section id="goal" aria-live="polite">
     <div class="goal-row">
-      <span class="goal-label">Next:</span>
+      <span id="goal-tag" class="goal-tag"></span>
       <span id="goal-text"></span>
       <span id="goal-nums"></span>
     </div>
@@ -41,9 +41,9 @@
 
   <main>
     <section id="core">
-      <div id="have-caption">You have</div>
+      <div id="have-caption"><span class="swatch swatch-balance"></span>You have</div>
       <div id="counter"><span id="ops"></span> <span id="unit"></span></div>
-      <div id="total" hidden></div>
+      <div id="total" hidden><span class="swatch swatch-lifetime"></span><span id="total-text"></span></div>
       <div id="rate" hidden></div>
       <div id="team" hidden></div>
       <div id="click-wrap">

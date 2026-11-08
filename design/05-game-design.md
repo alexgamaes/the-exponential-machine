@@ -178,3 +178,8 @@ Player feedback: the pace was good and it was fun. Fixed:
 - Colossus milestone is 650,000 checks in total. Win the war costs 1.2 million.
 Results: normal play 10–13 min · holding the button 8 min · greedy 15 min · idle 13–15 min.
 Something to buy every 30–45 s up to the end.
+- **Goal bar kinds (second playtest):** the switching bar was still confusing, so each kind now has a fixed
+  identity: a tag (SAVE UP / IN TOTAL / TEAM / BY HAND / READY), a colour, and a bar texture (hatched for totals,
+  one block per item for counts). When the kind changes, the bar drains, swaps and refills, with a coloured outline (under 0.7 s).
+  The same colours mark "You have" (red) and "Checked in total" (blue) under the counter, and a TEAM goal outlines the
+  matching Hire/Build button. Details in `03b-ux-revision.md` §d.

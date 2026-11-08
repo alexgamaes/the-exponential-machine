@@ -12,6 +12,8 @@
   --soft-border: #6d6556;
   --bar-bg: #ddd4bf;
   --ok: #1d5c2a;
+  --k-balance: #9b1c1c; --k-lifetime: #1f3f8f; --k-owned: #8a4b00; --k-clicks: #5b2a86; --k-ready: #1d5c2a;
+  --k-on: #ffffff; --hatch: rgb(255 255 255 / 0.35);
   --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
   --font-num: 'IBM Plex Mono', ui-monospace, monospace;
   --font-era: 'Special Elite', 'Courier New', monospace;
@@ -30,6 +32,8 @@
     --soft-border: #8a8472;
     --bar-bg: #2a3446;
     --ok: #8fd19e;
+    --k-balance: #ff9180; --k-lifetime: #8fb4ff; --k-owned: #f2b45a; --k-clicks: #c9a2f0; --k-ready: #8fd19e;
+    --k-on: #0f1520; --hatch: rgb(0 0 0 / 0.35);
     color-scheme: dark;
   }
 }
@@ -44,6 +48,8 @@
   --soft-border: #8a8472;
   --bar-bg: #2a3446;
   --ok: #8fd19e;
+  --k-balance: #ff9180; --k-lifetime: #8fb4ff; --k-owned: #f2b45a; --k-clicks: #c9a2f0; --k-ready: #8fd19e;
+  --k-on: #0f1520; --hatch: rgb(0 0 0 / 0.35);
   color-scheme: dark;
 }
 
@@ -95,13 +101,44 @@ button { font: inherit; color: inherit; }
 /* ---------- goal bar ---------- */
 #goal {
   position: sticky; top: 0; z-index: 5;
-  background: var(--bg); padding: 0.6rem 0 0.75rem; border-bottom: 1px solid var(--soft-border);
+  background: var(--bg); padding: 0.6rem 0.5rem 0.75rem; transition: box-shadow 0.3s; border-bottom: 1px solid var(--soft-border);
 }
 .goal-row { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.35rem; }
-.goal-label { font-weight: 700; color: var(--accent); }
+/* goal kinds: --k is the colour of whatever the goal bar is measuring right now */
+body { --k: var(--k-balance); }
+body[data-goal-kind="balance"]  { --k: var(--k-balance); }
+body[data-goal-kind="lifetime"] { --k: var(--k-lifetime); }
+body[data-goal-kind="owned"]    { --k: var(--k-owned); }
+body[data-goal-kind="clicks"]   { --k: var(--k-clicks); }
+body[data-goal-kind="ready"]    { --k: var(--k-ready); }
+.goal-tag {
+  display: inline-block; min-width: 6.5rem; text-align: center;
+  background: var(--k); color: var(--k-on);
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; padding: 0.1rem 0.45rem;
+  transition: opacity 0.18s, transform 0.15s ease-out;
+}
+#goal .bar { position: relative; }
+#goal .bar > div { background: var(--k); }
+body[data-goal-kind="lifetime"] #goal .bar > div {
+  background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--hatch) 4px 6px);
+}
+#goal .bar.segmented::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent calc(100% - 3px), var(--bg) 0);
+  background-size: calc(100% / var(--segments)) 100%;
+}
+#goal.switching .goal-tag, #goal.switching #goal-text, #goal.switching #goal-nums { opacity: 0; transition: opacity 0.18s; }
+#goal.switching .bar > div { transition: width 0.18s ease-in; }
+#goal.refill .bar > div { transition: width 0.45s ease-out; }
+#goal.refill .goal-tag { animation: tag-pop 0.15s ease-out; }
+@keyframes tag-pop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+#goal.kind-changed { box-shadow: 0 0 0 2px var(--k); }
+.buy-btn.goal-target { outline: 2px solid var(--k); outline-offset: 2px; }
+.swatch { display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.4rem; vertical-align: 0.05rem; }
+.swatch-balance { background: var(--k-balance); }
+.swatch-lifetime { background: var(--k-lifetime); }
 #goal-text { font-weight: 700; flex: 1; }
 #goal-nums { font-family: var(--font-num); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-#goal.flash .bar > div { background: var(--ok); }
 
 /* ---------- core ---------- */
 #core { text-align: center; padding: 2rem 0 1.5rem; position: relative; }
