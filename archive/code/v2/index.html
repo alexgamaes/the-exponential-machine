@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Exponential Machine</title>
+  <script>
+    const t = localStorage.getItem('tem_theme');
+    if (t) document.documentElement.dataset.theme = t;
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="locale">
+    <span id="place"></span>
+    <span id="date"></span>
+  </header>
+  <main id="app">
+    <div id="stage">
+      <div id="flavor"></div>
+      <div id="count">0</div>
+      <div id="unit-label">possibilities ruled out</div>
+      <div id="rate"></div>
+      <button id="btn-compute">COMPUTE</button>
+      <div id="units"></div>
+    </div>
+  </main>
+  <footer>
+    <span id="title">the exponential machine</span>
+    <div id="controls">
+      <button id="btn-theme">LIGHT</button>
+      <button id="btn-reset">RESET</button>
+    </div>
+  </footer>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
