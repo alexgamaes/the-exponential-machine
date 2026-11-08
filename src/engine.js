@@ -3,9 +3,10 @@
 
 import { CONFIG } from './config.js';
 import { STAGE1 } from './data/stage1.js';
+import { STAGE2 } from './data/stage2.js';
 
-export const STAGES = { 1: STAGE1 };
-export const SAVE_VERSION = 1;
+export const STAGES = { 1: STAGE1, 2: STAGE2 };
+export const SAVE_VERSION = 2;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
@@ -36,6 +37,8 @@ export function createState() {
     endingIndex: 0,
     endingAt: 0,
     legacyRate: 0,
+    stageStart: { time: 0, lifetime: 0, clicks: 0 }, // conditions and the goal count from here
+    hushUntil: 0,     // no reveals or story lines until then (a quiet moment after a heavy beat)
     _clickAcc: 0,
     _clickRate: 0,    // smoothed clicks per second (for the speedometer)
   };
@@ -78,7 +81,8 @@ export function producerUnlocked(s, id) {
 export function producerOutput(s, id, fx = upgradeEffects(s)) {
   const p = stageData(s).producers.find(x => x.id === id);
   let out = p.output * (fx.mul[id] || 1) * fx.globalMul;
-  if (id === 'clerk' && fx.synergy) out *= 1 + fx.synergy * (s.producers.machine || 0);
+  const syn = stageData(s).synergy; // e.g. { target: 'clerk', source: 'machine' }
+  if (syn && id === syn.target && fx.synergy) out *= 1 + fx.synergy * (s.producers[syn.source] || 0);
   return out;
 }
 
@@ -95,7 +99,36 @@ export function getRate(s, fx = upgradeEffects(s)) {
 }
 
 export function getClickValue(s, fx = upgradeEffects(s)) {
-  return CONFIG.clickBase * fx.clickMul + fx.clickPct * getRate(s, fx);
+  const st = stageData(s);
+  const base = st.clickLegacyFrac ? st.clickLegacyFrac * s.legacyRate : CONFIG.clickBase;
+  return base * fx.clickMul + fx.clickPct * getRate(s, fx);
+}
+
+// Totals since this stage began (conditions and the goal use these, not the all-time numbers).
+export function stageTotal(s) { return s.lifetime - s.stageStart.lifetime; }
+export function stageClicks(s) { return s.clicks - s.stageStart.clicks; }
+
+// The unit word. A stage can rename it partway (checks -> operations); the number never changes.
+export function unitName(s) {
+  const st = stageData(s);
+  return st.unitRenameBeat && s.beats[st.unitRenameBeat] === undefined ? st.unitBefore : st.unit;
+}
+
+// Header role: the stage role, or the latest promotion whose condition is met.
+export function roleName(s) {
+  const st = stageData(s);
+  let r = st.role;
+  for (const p of st.promotions || []) if (conditionMet(s, p.when)) r = p.role;
+  return r;
+}
+
+// Fill a stage text template: {n} number, {unit} the current unit word, {goal} the goal name.
+export function phrase(s, key, vars = {}) {
+  const st = stageData(s);
+  let t = st.text[key] || '';
+  const all = { unit: unitName(s), goal: st.goal.name.charAt(0).toLowerCase() + st.goal.name.slice(1), ...vars };
+  for (const [k, v] of Object.entries(all)) t = t.split(`{${k}}`).join(v);
+  return t;
 }
 
 // Effective speed = machines + what your clicking currently adds.
@@ -108,9 +141,10 @@ export function effectiveRate(s) {
 
 function conditionMet(s, c) {
   if (!c) return true;
-  if (c.lifetime !== undefined && s.lifetime < c.lifetime) return false;
-  if (c.clicks !== undefined && s.clicks < c.clicks) return false;
+  if (c.lifetime !== undefined && stageTotal(s) < c.lifetime) return false;
+  if (c.clicks !== undefined && stageClicks(s) < c.clicks) return false;
   if (c.rate !== undefined && getRate(s) < c.rate) return false;
+  if (c.legacyTimes !== undefined && !(s.legacyRate > 0 && getRate(s) >= c.legacyTimes * s.legacyRate)) return false;
   if (c.upgrade !== undefined && !(c.upgrade in s.bought)) return false;
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) if ((s.producers[id] || 0) < n) return false;
   if (c.after !== undefined) {
@@ -125,12 +159,12 @@ function conditionMet(s, c) {
 // kind: 'lifetime' (checks ever made, "in total") | 'clicks' ("by hand") | 'owned' (a count) | 'upgrade'.
 export function conditionProgress(s, c) {
   const st = stageData(s);
-  if (c.lifetime !== undefined && s.lifetime < c.lifetime)
-    return { kind: 'lifetime', phrase: `Check ${fmtInt(c.lifetime)} guesses in total`, unitLabel: 'in total',
-             have: s.lifetime, need: c.lifetime };
-  if (c.clicks !== undefined && s.clicks < c.clicks)
-    return { kind: 'clicks', phrase: `Check ${fmtInt(c.clicks)} guesses by hand`, unitLabel: 'by hand',
-             have: s.clicks, need: c.clicks };
+  if (c.lifetime !== undefined && stageTotal(s) < c.lifetime)
+    return { kind: 'lifetime', phrase: phrase(s, 'lifetime', { n: fmtInt(c.lifetime) }), unitLabel: 'in total',
+             have: stageTotal(s), need: c.lifetime };
+  if (c.clicks !== undefined && stageClicks(s) < c.clicks)
+    return { kind: 'clicks', phrase: phrase(s, 'clicks', { n: fmtInt(c.clicks) }), unitLabel: 'by hand',
+             have: stageClicks(s), need: c.clicks };
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) {
     if ((s.producers[id] || 0) < n) {
       const p = st.producers.find(x => x.id === id);
@@ -188,7 +222,7 @@ export function buyUpgrade(s, id, optionId) {
 
 // The stage goal is a total-production milestone, not a purchase: spending never delays it.
 // Once reached, the player clicks it (it is free) and the finale begins.
-export function canBuyGoal(s) { return s.phase === 'playing' && s.lifetime >= stageData(s).goal.lifetime; }
+export function canBuyGoal(s) { return s.phase === 'playing' && stageTotal(s) >= stageData(s).goal.lifetime; }
 
 export function buyGoal(s) {
   if (!canBuyGoal(s)) return false;
@@ -220,17 +254,31 @@ export function buyFinale(s) {
   return true;
 }
 
-// The handover: machines fold into one Legacy line that keeps the exact rate.
+// The handover: machines fold into one Legacy line that keeps the exact rate, then the next stage opens.
 export function passLedger(s) {
   if (s.phase !== 'handover') return false;
-  const rate = getRate(s);
+  const rate = getRate(s);          // computed with the OLD stage's data
   const st = stageData(s);
   for (const p of st.producers) s.producers[p.id] = 0;
   s.bought = {}; s.choices = {}; s.revealed = {};
   s.legacyRate = rate;
   addLog(s, st.next.text, st.next.date, 'milestone');
-  s.phase = 'next'; // Stage 2 is not built yet.
+  if (STAGES[s.stage + 1]) enterStage(s, s.stage + 1);
+  else s.phase = 'next';            // the next stage is not built yet
   return true;
+}
+
+export function enterStage(s, n) {
+  const st = STAGES[n];
+  s.stage = n;
+  s.producers = Object.fromEntries(st.producers.map(p => [p.id, 0]));
+  s.bought = {}; s.choices = {}; s.revealed = {}; s.beats = {};
+  s.lastRevealAt = -Infinity; s.hushUntil = 0;
+  s.goalDone = false; s.finaleIndex = 0; s.endingIndex = 0; s.endingAt = 0;
+  s.stageStart = { time: s.time, lifetime: s.lifetime, clicks: s.clicks };
+  s.phase = 'playing';
+  addLog(s, st.title, null, 'stage');
+  checkBeats(s);                    // the stage's opening line
 }
 
 // ---------- time ----------
@@ -240,7 +288,8 @@ export function tick(s, dt) {
   s.time += dt;
   const fx = upgradeEffects(s);
   const rate = getRate(s, fx);
-  const gain = rate * dt;
+  // Production pauses on the "Pass the ledger on" screen, so nobody starts the next stage rich.
+  const gain = isActive(s) || s.phase === 'ending' ? rate * dt : 0;
   s.ops += gain; s.lifetime += gain;
   if (rate > s.bestRate) s.bestRate = rate;
 
@@ -265,7 +314,7 @@ export function tick(s, dt) {
 
 function revealUpgrades(s) {
   const st = stageData(s);
-  if (s.time - s.lastRevealAt < CONFIG.revealGapSec) return;
+  if (s.time - s.lastRevealAt < CONFIG.revealGapSec || s.time < s.hushUntil) return;
   const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought)).length;
   if (open >= CONFIG.maxOpenUpgrades) return;
   // Reveal the first upgrade (in data order) whose condition is met.
@@ -282,10 +331,12 @@ function revealUpgrades(s) {
 function checkBeats(s) {
   const st = stageData(s);
   for (const b of st.beats) {
+    if (s.time < s.hushUntil) return;
     if (s.beats[b.id] !== undefined) continue;
     if (conditionMet(s, b.when)) {
       s.beats[b.id] = s.time;
-      addLog(s, b.text, b.date, 'story');
+      addLog(s, b.text, b.date, b.kind || 'story');
+      if (b.hush) s.hushUntil = s.time + b.hush;
     }
   }
 }
@@ -321,14 +372,14 @@ export function currentGoal(s) {
     const f = currentFinale(s);
     if (!f) return null;
     if (s.ops >= f.cost) return { text: f.name, kind: 'ready', ready: true, have: 1, need: 1 };
-    return { text: `Save up for "${f.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: f.cost, eta: true };
+    return { text: `Save up for "${f.name}"`, kind: 'balance', unitLabel: unitName(s), have: s.ops, need: f.cost, eta: true };
   }
   if (s.phase !== 'playing') return null;
   // The goal bar tracks only the stage goal, in one unit (checks in total). It does not tell the
   // player which upgrade to buy: the cards show their own progress, the locked card shows what unlocks next.
   if (canBuyGoal(s)) return { text: st.goal.name, kind: 'ready', ready: true, have: 1, need: 1 };
-  return { text: `Check ${fmtInt(st.goal.lifetime)} guesses in total to ${st.goal.name.charAt(0).toLowerCase() + st.goal.name.slice(1)}`,
-           kind: 'lifetime', unitLabel: 'in total', have: s.lifetime, need: st.goal.lifetime, eta: true,
+  return { text: phrase(s, 'goal', { n: fmtInt(st.goal.lifetime) }),
+           kind: 'lifetime', unitLabel: 'in total', have: stageTotal(s), need: st.goal.lifetime, eta: true,
            frac: stageProgress(s) };
 }
 
@@ -338,7 +389,7 @@ function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
 export function stageProgress(s) {
   const g = stageData(s).goal.lifetime;
   if (s.phase !== 'playing') return 1;
-  return Math.min(1, Math.pow(s.lifetime / g, 0.3));
+  return Math.min(1, Math.pow(Math.max(0, stageTotal(s)) / g, 0.3));
 }
 
 // ---------- save / load ----------
@@ -351,14 +402,21 @@ export function serialize(s) {
 }
 
 export function deserialize(json) {
-  const base = createState();
   let data;
   try { data = JSON.parse(json); } catch { return null; }
-  if (!data || data.version !== SAVE_VERSION) return null;
+  if (!data || typeof data !== 'object' || !(data.version >= 1 && data.version <= SAVE_VERSION) || !STAGES[data.stage]) return null;
+  const base = createState();
   const s = { ...base, ...data };
   if (s.lastRevealAt === null) s.lastRevealAt = -Infinity;
-  s.producers = { ...base.producers, ...data.producers };
+  s.producers = { ...Object.fromEntries(STAGES[s.stage].producers.map(p => [p.id, 0])), ...data.producers };
   s._clickAcc = 0; s._clickRate = 0;
+  // v1 -> v2: stage-relative totals; a finished Stage 1 save moves on to Stage 2.
+  if (data.version === 1) {
+    s.stageStart = { time: 0, lifetime: 0, clicks: 0 };
+    s.hushUntil = 0;
+    s.version = SAVE_VERSION;
+    if (s.stage === 1 && s.phase === 'next') enterStage(s, 2);
+  }
   return s;
 }
 

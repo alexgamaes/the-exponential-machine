@@ -12,8 +12,22 @@ export const STAGE1 = {
   clickLabel: 'Check a guess',
   // Speedometer: a fixed task whose duration shrinks as you get faster.
   task: { label: "Decoding one day's messages", size: 10000 },
-  // How many checks per second one person with a pencil manages (for "as fast as N people").
-  personRate: 0.5,
+  // Team line: "as fast as N people with pencils".
+  compare: { rate: 0.5, one: 'one person with a pencil', many: '{n} people with pencils' },
+  // The Legacy row in later stages.
+  legacy: 'Bletchley Park, 1939–45',
+  // Each machine makes every clerk faster (the "Shared card index" upgrade).
+  synergy: { target: 'clerk', source: 'machine' },
+  // Every player-facing sentence about this era. {n} number, {unit} unit word, {goal} goal name.
+  text: {
+    team: 'Your team',
+    total: 'Checked in total: {n}',
+    goal: 'Check {n} guesses in total to {goal}',
+    lifetime: 'Check {n} guesses in total',
+    clicks: 'Check {n} guesses by hand',
+    away: 'your team checked {n} guesses',
+    teamComplete: 'The team is complete. Every check now goes to the war.',
+  },
 
   producers: [
     {

@@ -11,7 +11,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%239b1c1c'/%3E%3Ctext x='8' y='12.5' font-size='12' text-anchor='middle' fill='white' font-family='monospace'%3Ee%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans:wght@500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans:wght@500;600;700&family=IBM+Plex+Sans+Condensed:wght@700&family=Special+Elite&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="era-1939">
@@ -51,9 +51,13 @@
 
     <div id="columns">
       <section id="producers" class="panel" hidden>
-        <h2>Your team</h2>
+        <h2 id="producers-title">Your team</h2>
+        <div id="legacy-row" class="legacy" hidden>
+          <div class="producer-head"><span id="legacy-label"></span><span class="legacy-tag">Legacy</span></div>
+          <p id="legacy-text"></p>
+        </div>
         <div id="producer-list"></div>
-        <p id="team-complete" class="muted-note" hidden>The team is complete. Every check now goes to the war.</p>
+        <p id="team-complete" class="muted-note" hidden></p>
       </section>
       <section id="upgrades" class="panel" hidden>
         <h2>Ideas</h2>
@@ -63,7 +67,7 @@
 
     <section id="next-stage" class="panel" hidden>
       <h2>To be continued</h2>
-      <p>Stage 2, the computing lab (1946–1971), is not built yet.</p>
+      <p>The next stage is not built yet.</p>
       <p>Your speed carries over: <b id="legacy-rate"></b>.</p>
       <button class="buy-btn" data-action="reset">Start again from 1939</button>
     </section>
@@ -73,6 +77,8 @@
       <ol id="log"></ol>
     </section>
   </main>
+
+  <div id="announce" class="visually-hidden" aria-live="polite"></div>
 
   <footer>
     <button class="link-btn" data-action="reset">Reset game</button>

@@ -26,7 +26,7 @@ function load() {
 function awayCatchUp(st, seconds) {
   if (seconds < 5) return;
   const gained = E.applyOffline(st, seconds);
-  if (gained > 0) E.note(st, `While you were away (${fmtDuration(Math.min(seconds, CONFIG.offlineMaxSec))}), your team checked ${fmt(gained)} guesses.`);
+  if (gained > 0) E.note(st, `While you were away (${fmtDuration(Math.min(seconds, CONFIG.offlineMaxSec))}), ${E.phrase(st, 'away', { n: fmt(gained) })}.`);
 }
 setInterval(save, SAVE_EVERY_MS);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
@@ -72,7 +72,7 @@ mainBtn.addEventListener('contextmenu', (e) => e.preventDefault());
 // Keyboard: Enter/Space on the focused button fire 'click' with detail 0.
 mainBtn.addEventListener('click', (e) => { if (e.detail === 0) doClick(); });
 
-// Space anywhere = check a guess (held = repeat, throttled to the hold rate).
+// Space anywhere = the main action (held = repeat, throttled to the hold rate).
 let lastKeyClick = 0;
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.target.closest('button, input, textarea')) return;
@@ -92,7 +92,7 @@ document.addEventListener('click', (e) => {
     case 'choose': E.buyUpgrade(s, id, option); break;
     case 'build-goal': E.buyGoal(s); save(); break;
     case 'finale': E.buyFinale(s); save(); break;
-    case 'pass': E.passLedger(s); save(); break;
+    case 'pass': E.passLedger(s); save(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
     case 'theme': cycleTheme(); break;
     case 'reset':
       if (confirm('Start again from 1939? Your progress will be lost.')) {
