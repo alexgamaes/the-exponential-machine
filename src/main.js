@@ -90,6 +90,8 @@ document.addEventListener('click', (e) => {
     case 'buy-producer': E.buyProducer(s, id); break;
     case 'buy-upgrade': E.buyUpgrade(s, id); break;
     case 'choose': E.buyUpgrade(s, id, option); break;
+    case 'build-goal': E.buyGoal(s); save(); break;
+    case 'finale': E.buyFinale(s); save(); break;
     case 'pass': E.passLedger(s); save(); break;
     case 'theme': cycleTheme(); break;
     case 'reset':
@@ -101,8 +103,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// The stage goal is bought automatically the moment it is reached: it is a milestone, not a choice.
-setInterval(() => { if (E.canBuyGoal(s)) { E.buyGoal(s); save(); } }, 250);
 
 // ---------- theme: system → light → dark ----------
 function cycleTheme() {

@@ -73,10 +73,28 @@ test('handover keeps the exact speed', () => {
   s.lifetime = STAGE1.goal.lifetime;
   const rate = E.getRate(s);
   assert.equal(E.buyGoal(s), true);
+  assert.equal(s.phase, 'finale');
+  assert.ok(E.getRate(s) > rate, 'Colossus speeds you up');
+  s.ops = 1e12;
+  assert.equal(E.buyProducer(s, 'clerk'), false, 'no hiring after Colossus');
+  while (E.currentFinale(s)) assert.equal(E.buyFinale(s), true);
   for (let i = 0; i < 1000 && s.phase === 'ending'; i++) E.tick(s, 0.5);
   assert.equal(s.phase, 'handover');
   const r2 = E.getRate(s);
   assert.equal(E.passLedger(s), true);
   assert.ok(Math.abs(E.getRate(s) - r2) < 1e-9);
   assert.ok(r2 >= rate);
+});
+
+test('goal bar always names its unit', () => {
+  const s = E.createState();
+  for (let i = 0; i < 4000; i++) {
+    E.click(s, 2); E.tick(s, 0.25);
+    if (i % 7 === 0) { E.buyProducer(s, 'clerk'); E.buyProducer(s, 'machine'); }
+    const u = STAGE1.upgrades.find(x => E.canBuyUpgrade(s, x.id));
+    if (u) E.buyUpgrade(s, u.id, u.effect.type === 'choice' ? 'machines' : undefined);
+    const g = E.currentGoal(s);
+    if (!g) break;
+    assert.ok(g.ready || g.unitLabel, `goal "${g.text}" has no unit`);
+  }
 });

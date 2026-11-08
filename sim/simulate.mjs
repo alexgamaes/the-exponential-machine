@@ -46,7 +46,7 @@ function run(profileName, choice, verbose = false) {
   const snaps = [];
   let nextSnap = 60;
 
-  while (s.phase === 'playing' && s.time < MAX_TIME) {
+  while (E.isActive(s) && s.time < MAX_TIME) {
     // clicking
     clickCarry += clicksAt(prof.clicks, s.time) * DT;
     const n = Math.floor(clickCarry);
@@ -59,7 +59,7 @@ function run(profileName, choice, verbose = false) {
     if (!Number.isFinite(rate) || !Number.isFinite(s.ops)) { fails.push(`NaN/Infinity at t=${s.time.toFixed(1)}`); break; }
     if (rate < lastRate - 1e-9) fails.push(`speed dropped at t=${s.time.toFixed(1)} (${lastRate} -> ${rate})`);
     lastRate = rate;
-    if (s.phase === 'playing' && !E.currentGoal(s)) fails.push(`empty goal bar at t=${s.time.toFixed(1)}`);
+    if (E.isActive(s) && !E.currentGoal(s)) fails.push(`empty goal bar at t=${s.time.toFixed(1)}`);
 
     for (const id of Object.keys(s.revealed)) if (!revealedSeen.has(id)) { revealedSeen.add(id); ev('reveal', id); }
     if (s.log.length !== lastLogLen) { lastLogLen = s.log.length; ev('log', s.log[0].text.slice(0, 50)); }
@@ -78,7 +78,7 @@ function run(profileName, choice, verbose = false) {
     }
   }
 
-  const finished = s.phase !== 'playing';
+  const finished = !E.isActive(s);
   const finishTime = s.time;
   if (!finished) fails.push(`did not finish within ${MAX_TIME / 60} min`);
 
@@ -120,7 +120,8 @@ function run(profileName, choice, verbose = false) {
 function decide(s, choice, ev, greedy = false) {
   const st = E.stageData(s);
   for (let guard = 0; guard < 1000; guard++) {
-    if (E.canBuyGoal(s)) { E.buyGoal(s); ev('GOAL', st.goal.name); return; }
+    if (E.canBuyGoal(s)) { E.buyGoal(s); ev('GOAL', st.goal.name); continue; }
+    if (E.canBuyFinale(s)) { const f = E.currentFinale(s); E.buyFinale(s); ev('FINALE', f.name); continue; }
     const up = st.upgrades.find(u => E.canBuyUpgrade(s, u.id));
     if (up) {
       const opt = up.effect.type === 'choice' ? choice : undefined;
@@ -137,6 +138,7 @@ function decide(s, choice, ev, greedy = false) {
     // save for an upgrade (or the goal) that is close
     const eff = E.effectiveRate(s);
     const targets = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]).map(u => u.cost);
+    const fin = E.currentFinale(s); if (fin) targets.push(fin.cost);
     const near = targets.filter(c => c > s.ops && c < s.ops + eff * SAVE_HORIZON);
     if (near.length && !greedy) return; // something worth having is less than SAVE_HORIZON away: save for it
     if (s.ops < cost) return;
@@ -161,7 +163,8 @@ if (arg('--config')) Object.assign(CONFIG, JSON.parse(arg('--config')));
 if (arg('--data')) {
   const st = E.STAGES[1];
   for (const [id, patch] of Object.entries(JSON.parse(arg('--data')))) {
-    const item = st.producers.find(x => x.id === id) || st.upgrades.find(x => x.id === id) || (st.goal.id === id && st.goal);
+    const item = st.producers.find(x => x.id === id) || st.upgrades.find(x => x.id === id) ||
+      st.finale.find(x => x.id === id) || (st.goal.id === id && st.goal);
     if (!item) throw new Error('unknown id ' + id);
     Object.assign(item, patch);
   }

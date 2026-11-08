@@ -42,3 +42,22 @@ export function fmtDate(ym, short = false) {
   const name = MONTHS[m - 1];
   return `${short ? name.slice(0, 3) : name} ${y}`;
 }
+
+// Stable, rounded durations for text that should not flicker.
+export function fmtApprox(sec) {
+  if (!Number.isFinite(sec) || sec > 3600 * 24 * 365) return 'forever';
+  if (sec < 1) return 'under a second';
+  if (sec < 10) return `${sec.toFixed(1)} s`;
+  if (sec < 60) return `${Math.round(sec)} s`;
+  if (sec < 600) { const t = Math.round(sec / 10) * 10; const m = Math.floor(t / 60), s = t % 60; return s ? `${m} min ${s} s` : `${m} min`; }
+  if (sec < 3600) return `${Math.round(sec / 60)} min`;
+  const t = Math.round(sec / 600) * 600; const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+// Round to 2 significant figures (237 -> 240, 1,234 -> 1,200).
+export function sig2(n) {
+  if (n < 10) return Math.round(n);
+  const p = Math.pow(10, Math.floor(Math.log10(n)) - 1);
+  return Math.round(n / p) * p;
+}

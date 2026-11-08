@@ -157,3 +157,24 @@ The first build was checked with `sim/simulate.mjs`, which plays the real engine
 
 Current results (all pass): normal play 9–12 min · holding the button 7–8 min · greedy 15 min · mostly idle 12–14 min.
 Longest stretch with nothing new on screen: 32–50 s.
+
+## 9. Changes after the first playtest (2026-11-07)
+Player feedback: the pace was good and it was fun. Fixed:
+- **Units were unclear** (the goal bar silently switched between checks you have, clerk/machine counts and
+  checks in total). Applied `03b-ux-revision.md`:
+  - "You have" above the counter, plus a new "Checked in total" line.
+  - Goal numbers always carry a unit, e.g. "You have 292 of 2,200 checks", "7 of 10 clerks", "28,400 of 35,000 in total".
+  - The goal names what it unlocks.
+  - The header meter reads "Goal: Colossus" with no misleading %.
+- **The flickering speedometer** now uses team speed only (no clicks) and rounded values, so it changes only when you
+  buy something: "Your team: as fast as 260 people with pencils · decoding one day's messages in about 1 min 20 s".
+  The goal ETA updates once a second.
+- **Dead time at the end, and no action before the handover:**
+  - Two late upgrades: Tape-reading machine (Heath Robinson, 1943) and Post Office engineers (Flowers, 1943).
+  - **Build Colossus** is now a card you click when ready; it makes everything 3× faster.
+  - **Finale:** two final actions bought with checks: *Read Berlin's orders* (D-Day) and *Win the war* (VE Day).
+    Hiring stops after Colossus ("the team is complete"), so every check goes to the finale.
+  - Then the closing lines, then "Pass the ledger on".
+- Colossus milestone is 650,000 checks in total. Win the war costs 1.2 million.
+Results: normal play 10–13 min · holding the button 8 min · greedy 15 min · idle 13–15 min.
+Something to buy every 30–45 s up to the end.

@@ -17,13 +17,13 @@ export const STAGE1 = {
 
   producers: [
     {
-      id: 'clerk', name: 'Clerks', buyLabel: 'Hire a clerk',
+      id: 'clerk', name: 'Clerks', short: 'clerks', verb: 'Hire', buyLabel: 'Hire a clerk',
       each: 'Each checks {out} guesses per second.',
       baseCost: 10, growth: 1.12, output: 0.5,
       reveal: { lifetime: 8 },
     },
     {
-      id: 'machine', name: 'Code-breaking machines', buyLabel: 'Build a machine',
+      id: 'machine', name: 'Code-breaking machines', short: 'machines', verb: 'Build', buyLabel: 'Build a machine',
       each: 'Each checks {out} guesses per second.',
       baseCost: 600, growth: 1.12, output: 8,
       reveal: { upgrade: 'machineBlueprint' },
@@ -120,14 +120,29 @@ export const STAGE1 = {
       id: 'americanMachines', name: 'American machines', cost: 65000,
       text: 'Machines work twice as fast.',
       effect: { type: 'producerMul', target: 'machine', value: 2 },
-      reveal: { lifetime: 60000 }, date: '1943-06',
+      reveal: { lifetime: 60000 }, date: '1943-03',
       log: 'In Dayton, Ohio, a cash-register company starts building over a hundred machines of its own.',
+    },
+    {
+      id: 'tapeMachine', name: 'Tape-reading machine', cost: 110000,
+      text: 'Everything works 1.25× faster.',
+      effect: { type: 'globalMul', value: 1.25 },
+      reveal: { lifetime: 100000 }, date: '1943-06',
+      log: 'A new machine reads two loops of paper tape at once. The tapes stretch, slip and snap. The staff call it Heath Robinson. It mostly works.',
+    },
+    {
+      id: 'postOffice', name: 'Post Office engineers', cost: 180000,
+      text: 'Machines work 1.5× faster.',
+      effect: { type: 'producerMul', target: 'machine', value: 1.5 },
+      reveal: { lifetime: 170000 }, date: '1943-12',
+      log: 'At Dollis Hill, Tommy Flowers and his team work day and night on a machine made of valves, partly paid for out of his own pocket.',
     },
   ],
 
   goal: {
-    id: 'colossus', name: 'Build Colossus', lifetime: 800000,
-    text: 'The first electronic computer. Ends this stage.',
+    id: 'colossus', name: 'Build Colossus', lifetime: 650000,
+    text: 'The first electronic computer. Everything works 3× faster.',
+    effect: { type: 'globalMul', value: 3 },
     date: '1944-02',
     log: 'Flowers was told valves would fail. He built Colossus with sixteen hundred of them. It works, and it is fast.',
   },
@@ -159,14 +174,24 @@ export const STAGE1 = {
       text: 'A message is broken at last. It reaches the Admiralty four hours after the convoy was attacked. We were not fast enough.' },
     { id: 'faster', when: { after: 'churchillLetter', delay: 46 }, date: '1942-03',
       text: 'Nobody in the hut says it out loud, but everyone thinks it: faster. We have to be faster.' },
-    { id: 'colossusRumour', when: { lifetime: 120000 }, date: '1943-11',
+    { id: 'colossusRumour', when: { after: 'americanMachines', delay: 15 }, date: '1943-11',
       text: 'At the Post Office research station, an engineer named Flowers says he can build a machine out of valves. Nobody believes him.' },
   ],
 
-  // Played in order after the goal is bought, one every few seconds.
+  // After Colossus: the last actions of the stage, bought in order.
+  finale: [
+    { id: 'dday', name: "Read Berlin's orders", cost: 600000,
+      text: 'Confirm the enemy still expects the landings in the wrong place.',
+      date: '1944-06',
+      log: 'June 1944. Five days before the landings, a second Colossus starts work. Berlin is still watching the wrong beach.' },
+    { id: 'winWar', name: 'Win the war', cost: 1200000,
+      text: 'Ends this stage.',
+      date: '1945-05',
+      log: '8 May 1945. Bells ring in the village. Nobody in the hut can say why they are crying.' },
+  ],
+
+  // Played in order after the finale, one every few seconds.
   ending: [
-    { date: '1944-06', text: 'June 1944. Five days before the landings, a second Colossus starts work. Berlin is still watching the wrong beach.' },
-    { date: '1945-05', text: '8 May 1945. Bells ring in the village. Nobody in the hut can say why they are crying.' },
     { date: '1945-06', text: 'Orders: the machines are to be broken up and the papers burned. You sign a promise never to speak of it.' },
     { date: '1945-06', text: 'The machines are gone. What you learned is not.' },
   ],

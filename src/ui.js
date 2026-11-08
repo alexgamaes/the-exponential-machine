@@ -1,7 +1,7 @@
 // Rendering. Elements are created once and updated in place (never rebuilt every frame),
 // so buttons stay the same DOM nodes and clicks always land.
 import * as E from './engine.js';
-import { fmt, fmtDuration, fmtDate } from './format.js';
+import { fmt, fmtDate, fmtApprox, sig2 } from './format.js';
 
 const $ = (id) => document.getElementById(id);
 const set = (el, txt) => { if (el.textContent !== txt) el.textContent = txt; };
@@ -28,6 +28,8 @@ const cardEls = new Map();
 let lockedEl = null;
 let logKey = '';
 let lastGoalText = '';
+let lastTeamText = '';
+let etaText = '', etaAt = 0;
 
 export function render(s) {
   const st = E.stageData(s);
@@ -42,18 +44,30 @@ export function render(s) {
   // header
   set($('era-date'), fmtDate(s.date));
   set($('era-role'), st.role);
-  set($('stage-meter-label'), `${st.goal.name.replace('Build ', '')}: ${Math.floor(E.stageProgress(s) * 100)}%`);
+  const meterTarget = s.phase === 'finale' ? 'Win the war' : st.goal.name.replace('Build ', '');
+  set($('stage-meter-label'), `Goal: ${meterTarget}`);
   fill($('stage-meter-fill'), E.stageProgress(s));
+  const meterTitle = `${fmt(Math.min(s.lifetime, st.goal.lifetime))} of ${fmt(st.goal.lifetime)} ${st.unit} in total`;
+  if ($('stage-meter').title !== meterTitle) $('stage-meter').title = meterTitle;
 
   // goal bar
   const goal = E.currentGoal(s);
   show($('goal'), !!goal);
   if (goal) {
     set($('goal-text'), goal.text);
-    let nums = `${fmt(goal.have)} / ${fmt(goal.need)}`;
-    if (goal.eta && goal.have < goal.need && eff > 0) nums += `  ·  ~${fmtDuration((goal.need - goal.have) / eff)}`;
-    set($('goal-nums'), nums);
-    fill($('goal-fill'), goal.have / goal.need);
+    let nums;
+    if (goal.ready) nums = 'Ready';
+    else if (goal.kind === 'balance') nums = `You have ${fmt(goal.have)} of ${fmt(goal.need)} ${goal.unitLabel}`;
+    else nums = `${fmt(goal.have)} of ${fmt(goal.need)} ${goal.unitLabel}`;
+    // ETA: recomputed once per second, rounded, hidden when over an hour.
+    const now = performance.now();
+    if (now - etaAt > 1000 || goal.text !== lastGoalText) {
+      etaAt = now;
+      const sec = (goal.need - goal.have) / Math.max(eff, 1e-9);
+      etaText = goal.eta && !goal.ready && eff > 0 && sec < 3600 ? `  ·  ~${fmtApprox(sec)}` : '';
+    }
+    set($('goal-nums'), nums + etaText);
+    fill($('goal-fill'), goal.ready ? 1 : goal.have / goal.need);
     if (goal.text !== lastGoalText) {
       if (lastGoalText) { $('goal').classList.add('flash'); setTimeout(() => $('goal').classList.remove('flash'), 400); }
       lastGoalText = goal.text;
@@ -63,21 +77,31 @@ export function render(s) {
   // core
   set($('ops'), fmt(s.ops));
   set($('unit'), st.unit);
+  show($('total'), s.lifetime > s.ops + 0.5);
+  set($('total'), `Checked in total: ${fmt(s.lifetime)}`);
   show($('rate'), s.clicks > 0 || rate > 0);
-  set($('rate'), `+${fmt(rate, 1)} ${st.unit} per second   ·   +${fmt(clickValue, 1)} per click`);
-  const people = eff / st.personRate;
-  show($('compare'), rate > 0);
-  set($('compare'), `As fast as ${fmt(Math.max(1, people))} ${people < 1.5 ? 'person' : 'people'} with pencils`);
-  show($('speedo'), s.lifetime >= 100 && eff > 0);
-  set($('speedo'), `${st.task.label} takes ${fmtDuration(st.task.size / Math.max(eff, 1e-9))} at your speed`);
+  set($('rate'), `+${fmt(rate, 1)} per second   ·   +${fmt(clickValue, 1)} per click`);
+  // Team line: team speed only (no clicks), rounded, so it changes only when you buy something.
+  show($('team'), rate > 0);
+  if (rate > 0) {
+    const people = sig2(rate / st.personRate);
+    const team = `Your team: as fast as ${fmt(people)} ${people === 1 ? 'person' : 'people'} with pencils · ` +
+      `${st.task.label.toLowerCase()} ${st.task.size / rate < 1 ? 'in under a second' : 'in about ' + fmtApprox(st.task.size / rate)}`;
+    set($('team'), team);
+    if (team !== lastTeamText) {
+      if (lastTeamText) { $('team').classList.add('flash'); setTimeout(() => $('team').classList.remove('flash'), 400); }
+      lastTeamText = team;
+    }
+  }
   const mainBtn = $('main-btn');
   set(mainBtn, st.clickLabel);
-  show(mainBtn, s.phase === 'playing' || s.phase === 'ending');
+  show(mainBtn, E.isActive(s) || s.phase === 'ending');
   show($('pass-btn'), s.phase === 'handover');
 
   // producers
   const anyProducer = st.producers.some(p => E.producerUnlocked(s, p.id));
   show($('producers'), anyProducer && s.phase !== 'next');
+  show($('team-complete'), s.phase !== 'playing');
   for (const p of st.producers) {
     const unlocked = E.producerUnlocked(s, p.id);
     let el = prodEls.get(p.id);
@@ -99,16 +123,17 @@ export function render(s) {
     const cost = E.producerCost(s, p.id);
     set(el.owned, `${n} owned`);
     const each = p.each.replace('{out}', fmt(out, 1)).replace('1 guesses', '1 guess');
-    set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} per second.` : ''));
+    set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} ${st.unit} per second.` : ''));
     set(el.cost, `${fmt(Math.ceil(cost))} ${st.unit}`);
     const can = s.phase === 'playing' && s.ops >= cost;
     if (el.btn.disabled === can) el.btn.disabled = !can;
+    show(el.btn, s.phase === 'playing');
   }
 
   // upgrades
   const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]);
   const locked = E.nextLocked(s);
-  show($('upgrades'), (open.length > 0 || Object.keys(s.revealed).length > 0) && s.phase === 'playing');
+  show($('upgrades'), (open.length > 0 || Object.keys(s.revealed).length > 0) && E.isActive(s));
   const list = $('upgrade-list');
   for (const [id, el] of cardEls) if (!open.some(u => u.id === id)) { el.root.remove(); cardEls.delete(id); }
   for (const u of open) {
@@ -124,16 +149,20 @@ export function render(s) {
   const wantLocked = locked && Object.keys(s.revealed).length > 0;
   if (wantLocked) {
     if (!lockedEl) {
-      lockedEl = { root: h('div', { class: 'card locked' }), name: h('span'), needs: h('div', { class: 'needs' }) };
-      lockedEl.root.append(h('div', { class: 'card-head' }, lockedEl.name, h('span', { class: 'card-cost' }, 'locked')), lockedEl.needs);
+      lockedEl = { root: h('div', { class: 'card locked' }), name: h('span'), cost: h('span', { class: 'card-cost' }), needs: h('div', { class: 'needs' }) };
+      lockedEl.root.append(h('div', { class: 'card-head' }, lockedEl.name, lockedEl.cost), lockedEl.needs);
     }
     set(lockedEl.name, locked.upgrade.name);
     const p = locked.progress;
-    set(lockedEl.needs, p ? `Needs ${fmt(p.need)} ${p.label}. You have ${fmt(p.have)}.` : 'Coming soon.');
+    set(lockedEl.cost, `${fmt(locked.upgrade.cost)} ${st.unit}`);
+    set(lockedEl.needs, p ? `Locked: ${p.phrase.charAt(0).toLowerCase() + p.phrase.slice(1)} (${fmt(p.have)} of ${fmt(p.need)}${p.unitLabel && p.kind !== 'lifetime' ? ' ' + p.unitLabel : ''}).` : 'Coming soon.');
   }
   // Cards in data order, locked preview last. Only touch the DOM when the order changes,
   // so a button never moves between mouse-down and mouse-up.
+  // Stage-end card (Colossus when ready, then each finale action) goes first.
+  const big = bigCard(s, st);
   const wanted = open.map(u => cardEls.get(u.id).root);
+  if (big) wanted.unshift(big);
   if (wantLocked) wanted.push(lockedEl.root);
   const current = [...list.children];
   if (wanted.length !== current.length || wanted.some((el, i) => el !== current[i])) list.replaceChildren(...wanted);
@@ -143,6 +172,30 @@ export function render(s) {
   if (s.phase === 'next') set($('legacy-rate'), `${fmt(s.legacyRate, 1)} ${st.unit} per second`);
 
   renderLog(s);
+}
+
+// One persistent "milestone" card reused for Build Colossus and the finale actions.
+let bigEl = null;
+function bigCard(s, st) {
+  let item = null, action = null, costText = '', can = false;
+  if (E.canBuyGoal(s)) { item = st.goal; action = 'build-goal'; costText = 'ready'; can = true; }
+  else if (s.phase === 'finale') {
+    item = E.currentFinale(s); action = 'finale';
+    if (item) { can = s.ops >= item.cost; costText = `${fmt(item.cost)} ${st.unit}`; }
+  }
+  if (!item) return null;
+  if (!bigEl) {
+    bigEl = { name: h('span'), cost: h('span', { class: 'card-cost' }), effect: h('div', { class: 'card-effect' }), progress: h('div', { class: 'progress' }) };
+    bigEl.root = h('button', { class: 'card milestone' }, h('div', { class: 'card-head' }, bigEl.name, bigEl.cost), bigEl.effect, bigEl.progress);
+  }
+  bigEl.root.dataset.action = action;
+  set(bigEl.name, item.name);
+  set(bigEl.cost, costText);
+  set(bigEl.effect, item.text);
+  toggle(bigEl.root, 'affordable', can);
+  toggle(bigEl.root, 'unaffordable', !can);
+  fill(bigEl.progress, item.cost ? s.ops / item.cost : 1);
+  return bigEl.root;
 }
 
 function makeCard(u, st) {

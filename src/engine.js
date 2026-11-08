@@ -9,6 +9,9 @@ export const SAVE_VERSION = 1;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
+// 'playing' = building up; 'finale' = Colossus built, last actions of the stage. Both are interactive.
+export function isActive(s) { return s.phase === 'playing' || s.phase === 'finale'; }
+
 export function createState() {
   const st = STAGE1;
   const s = {
@@ -27,7 +30,9 @@ export function createState() {
     date: st.startDate,
     log: [],
     bestRate: 0,
-    phase: 'playing', // 'playing' | 'ending' | 'handover' | 'next'
+    phase: 'playing', // 'playing' | 'finale' | 'ending' | 'handover' | 'next'
+    goalDone: false,
+    finaleIndex: 0,
     endingIndex: 0,
     endingAt: 0,
     legacyRate: 0,
@@ -54,6 +59,7 @@ function upgradeEffects(s) {
       case 'unlockProducer': fx.unlocked[e.target] = true; break;
     }
   };
+  if (s.goalDone && st.goal.effect) apply(st.goal.effect);
   for (const u of st.upgrades) {
     if (!s.bought[u.id]) continue;
     if (u.effect.type === 'choice') {
@@ -115,21 +121,26 @@ function conditionMet(s, c) {
 }
 
 // Progress towards a condition, for "Needs X. You have Y." Returns {label, have, need} or null.
+// Progress towards a condition, with consistent wording.
+// kind: 'lifetime' (checks ever made, "in total") | 'clicks' ("by hand") | 'owned' (a count) | 'upgrade'.
 export function conditionProgress(s, c) {
   const st = stageData(s);
   if (c.lifetime !== undefined && s.lifetime < c.lifetime)
-    return { label: `${st.unit} in total`, have: s.lifetime, need: c.lifetime, kind: 'lifetime' };
+    return { kind: 'lifetime', phrase: `Check ${fmtInt(c.lifetime)} guesses in total`, unitLabel: 'in total',
+             have: s.lifetime, need: c.lifetime };
   if (c.clicks !== undefined && s.clicks < c.clicks)
-    return { label: 'guesses checked by hand', have: s.clicks, need: c.clicks };
+    return { kind: 'clicks', phrase: `Check ${fmtInt(c.clicks)} guesses by hand`, unitLabel: 'by hand',
+             have: s.clicks, need: c.clicks };
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) {
     if ((s.producers[id] || 0) < n) {
       const p = st.producers.find(x => x.id === id);
-      return { label: p.name.toLowerCase(), have: s.producers[id] || 0, need: n };
+      return { kind: 'owned', phrase: `${p.verb} ${n} ${p.short}`, unitLabel: p.short,
+               have: s.producers[id] || 0, need: n };
     }
   }
   if (c.upgrade !== undefined && !s.bought[c.upgrade]) {
     const u = st.upgrades.find(x => x.id === c.upgrade);
-    return { label: `"${u.name}"`, have: 0, need: 1 };
+    return { kind: 'upgrade', phrase: `Buy "${u.name}"`, unitLabel: '', have: 0, need: 1 };
   }
   return null;
 }
@@ -137,13 +148,14 @@ export function conditionProgress(s, c) {
 // ---------- actions ----------
 
 export function click(s, n = 1) {
-  if (s.phase !== 'playing' && s.phase !== 'ending') return 0;
+  if (!isActive(s) && s.phase !== 'ending') return 0;
   const v = getClickValue(s) * n;
   s.ops += v; s.lifetime += v; s.clicks += n; s._clickAcc += n;
   return v;
 }
 
 export function buyProducer(s, id) {
+  // After Colossus the team is complete: no more hiring, every check goes to the finale.
   if (s.phase !== 'playing' || !producerUnlocked(s, id)) return false;
   const cost = producerCost(s, id);
   if (s.ops < cost) return false;
@@ -157,7 +169,7 @@ export function upgradeById(s, id) { return stageData(s).upgrades.find(u => u.id
 
 export function canBuyUpgrade(s, id) {
   const u = upgradeById(s, id);
-  return !!u && s.phase === 'playing' && s.revealed[id] !== undefined && !s.bought[id] && s.ops >= u.cost;
+  return !!u && isActive(s) && s.revealed[id] !== undefined && !s.bought[id] && s.ops >= u.cost;
 }
 
 export function buyUpgrade(s, id, optionId) {
@@ -175,15 +187,36 @@ export function buyUpgrade(s, id, optionId) {
 }
 
 // The stage goal is a total-production milestone, not a purchase: spending never delays it.
+// Once reached, the player clicks it (it is free) and the finale begins.
 export function canBuyGoal(s) { return s.phase === 'playing' && s.lifetime >= stageData(s).goal.lifetime; }
 
 export function buyGoal(s) {
   if (!canBuyGoal(s)) return false;
   const g = stageData(s).goal;
   addLog(s, g.log, g.date, 'milestone');
-  s.phase = 'ending';
-  s.endingIndex = 0;
-  s.endingAt = s.time;
+  s.goalDone = true;
+  s.phase = 'finale';
+  s.finaleIndex = 0;
+  return true;
+}
+
+// Finale: the last actions of the stage, bought one after another with checks.
+export function currentFinale(s) {
+  if (s.phase !== 'finale') return null;
+  return stageData(s).finale[s.finaleIndex] || null;
+}
+export function canBuyFinale(s) { const f = currentFinale(s); return !!f && s.ops >= f.cost; }
+export function buyFinale(s) {
+  if (!canBuyFinale(s)) return false;
+  const f = currentFinale(s);
+  s.ops -= f.cost;
+  addLog(s, f.log, f.date, 'milestone');
+  s.finaleIndex += 1;
+  if (s.finaleIndex >= stageData(s).finale.length) {
+    s.phase = 'ending';
+    s.endingIndex = 0;
+    s.endingAt = s.time;
+  }
   return true;
 }
 
@@ -216,7 +249,7 @@ export function tick(s, dt) {
   s._clickRate += (s._clickAcc / dt - s._clickRate) * k;
   s._clickAcc = 0;
 
-  if (s.phase === 'playing') {
+  if (isActive(s)) {
     revealUpgrades(s);
     checkBeats(s);
   } else if (s.phase === 'ending') {
@@ -270,7 +303,7 @@ function addLog(s, text, date, kind) {
 
 // The next locked upgrade (not yet revealed), shown as a grey card with its unlock condition.
 export function nextLocked(s) {
-  if (s.phase !== 'playing') return null;
+  if (!isActive(s)) return null;
   for (const u of stageData(s).upgrades) {
     if (s.revealed[u.id] !== undefined) continue;
     return { upgrade: u, progress: conditionProgress(s, u.reveal) };
@@ -279,26 +312,33 @@ export function nextLocked(s) {
 }
 
 // One short-horizon goal for the goal bar. Never null while playing.
+// One short-horizon goal for the goal bar. Never null while active.
+// Returns { text, have, need, kind, unitLabel, ready, eta }.
+//   kind 'balance' = checks you have (spendable) · 'lifetime' = checks in total · 'owned'/'clicks' = counts.
 export function currentGoal(s) {
   const st = stageData(s);
+  if (s.phase === 'finale') {
+    const f = currentFinale(s);
+    if (!f) return null;
+    if (s.ops >= f.cost) return { text: f.name, ready: true, have: 1, need: 1 };
+    return { text: `Save up for "${f.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: f.cost, eta: true };
+  }
   if (s.phase !== 'playing') return null;
+  if (canBuyGoal(s)) return { text: st.goal.name, ready: true, have: 1, need: 1 };
   const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !s.bought[u.id]);
-  const unaffordable = open.filter(u => s.ops < u.cost).sort((a, b) => a.cost - b.cost);
-  if (open.length && !unaffordable.length) {
-    const u = open[0];
-    return { text: `Buy "${u.name}"`, have: s.ops, need: u.cost, eta: true };
-  }
-  if (unaffordable.length) {
-    const u = unaffordable[0];
-    return { text: `Save up for "${u.name}"`, have: s.ops, need: u.cost, eta: true };
-  }
+  const affordable = open.find(u => s.ops >= u.cost);
+  if (affordable) return { text: `Buy "${affordable.name}"`, ready: true, have: 1, need: 1 };
+  const saving = open.sort((a, b) => a.cost - b.cost)[0];
+  if (saving) return { text: `Save up for "${saving.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: saving.cost, eta: true };
   const nl = nextLocked(s);
   if (nl && nl.progress) {
-    return { text: `Reach ${fmtInt(nl.progress.need)} ${nl.progress.label} to unlock something new`,
-             have: nl.progress.have, need: nl.progress.need, eta: nl.progress.kind === 'lifetime' };
+    const p = nl.progress;
+    return { text: `${p.phrase} to unlock "${nl.upgrade.name}"`, kind: p.kind, unitLabel: p.unitLabel,
+             have: p.have, need: p.need, eta: p.kind === 'lifetime' };
   }
-  if (nl) return { text: 'Something new is coming…', have: 0, need: 1 };
-  return { text: `${st.goal.name}`, have: s.lifetime, need: st.goal.lifetime, eta: true };
+  if (nl) return { text: `"${nl.upgrade.name}" is coming`, ready: true, have: 1, need: 1 };
+  return { text: `Check ${fmtInt(st.goal.lifetime)} guesses in total to ${st.goal.name.toLowerCase()}`,
+           kind: 'lifetime', unitLabel: 'in total', have: s.lifetime, need: st.goal.lifetime, eta: true };
 }
 
 function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
