@@ -262,6 +262,23 @@ body.next #columns { display: none; }
   #log li { grid-template-columns: 1fr; gap: 0; }
 }
 
+/* ---------- selling computer time ---------- */
+.col { display: grid; gap: 1.25rem; align-content: start; }
+#money { font-family: var(--font-num); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.swatch-money { background: var(--ok); }
+.muted-note.first { margin: 0 0 0.75rem; }
+.seg { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.seg-label { font-weight: 700; margin-right: 0.75rem; }
+.seg button {
+  min-width: 3.75rem; min-height: 2.75rem; padding: 0.3rem 0.7rem; cursor: pointer;
+  background: var(--bg); border: 2px solid var(--border); margin-left: -2px;
+  font-family: var(--font-num); font-weight: 700;
+}
+.seg button:first-of-type { margin-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.seg button:not([aria-pressed="true"]):hover { background: var(--surface); }
+#sell-status { margin: 0.25rem 0; }
+
 /* ---------- Legacy row (earlier stages, folded into one fixed line) ---------- */
 .legacy { padding-bottom: 0.75rem; border-bottom: 1px dotted var(--soft-border); margin-bottom: 0.75rem; }
 .legacy p { margin: 0.2rem 0 0; font-size: 0.95rem; color: var(--muted); }
@@ -332,3 +349,7 @@ body.era-1946 .card:not(.locked)::before {
 }
 
 .muted-note { color: var(--muted); margin: 0.5rem 0 0; }
+
+/* dev tools (localhost only), below "Reset game" */
+#dev-tools { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.9rem; }
+#dev-tools .link-btn { padding: 0.5rem 0.6rem; }

@@ -196,3 +196,44 @@ test('a Stage 2 save round-trips with Stage 2 producers', () => {
   assert.equal(t.producers.computer, 3);
   assert.equal(t.producers.clerk, undefined);
 });
+
+// ---------- selling computer time ----------
+test('a dev start at Stage 2 carries what a typical Stage 1 leaves', () => {
+  const s = E.startAtStage(2);
+  assert.equal(s.stage, 2);
+  assert.equal(s.phase, 'playing');
+  assert.equal(s.legacyRate, STAGE2.arrival.legacyRate);
+  assert.equal(s.ops, STAGE2.arrival.ops);
+  assert.equal(E.stageTotal(s), 0);
+  assert.equal(s.date, '1946-02');
+});
+
+test('selling computer time earns money, capped by what customers want, and still counts for the goal', () => {
+  const s = E.startAtStage(2);
+  assert.equal(E.sellOpen(s), false, 'opens with Magnetic tape');
+  s.bought.magneticTape = s.time;
+  E.tick(s, 0.01); // the first customer arrives
+  assert.equal(E.sellOpen(s), true);
+  assert.ok(E.sellDemand(s) > 0);
+  E.setSell(s, 0.75);
+  const rate = E.getRate(s), ops = s.ops, total = E.stageTotal(s), dollars = s.dollars;
+  E.tick(s, 10);
+  assert.ok(Math.abs(E.stageTotal(s) - total - rate * 10) < 1e-6 * rate, 'every operation counts for the goal');
+  assert.ok(Math.abs(s.ops - ops - rate * 10 * 0.25) < 1e-6 * rate, 'only the unsold part is spendable');
+  const paid = Math.min(0.75 * rate, E.sellDemand(s)) * 10 * E.moneyPerOp(s);
+  assert.ok(Math.abs(s.dollars - dollars - paid) < 1e-6 * paid + 1e-9, 'customers pay only for what they want');
+  assert.equal(E.setSell(s, 0.33), false, 'only the listed shares');
+});
+
+test('mainframes are paid for with money; selling stops after the goal', () => {
+  const s = E.startAtStage(2);
+  s.bought.magneticTape = s.time; E.tick(s, 0.01);
+  s.ops = 1e12; s.dollars = 0;
+  assert.equal(E.buyProducer(s, 'mainframe'), false);
+  s.dollars = 1e7;
+  assert.equal(E.buyProducer(s, 'mainframe'), true);
+  assert.ok(s.dollars < 1e7 && s.ops === 1e12);
+  s.lifetime = s.stageStart.lifetime + STAGE2.goal.lifetime;
+  E.buyGoal(s);
+  assert.equal(E.sellShare(s), 0, 'every operation now goes to the Moon');
+});

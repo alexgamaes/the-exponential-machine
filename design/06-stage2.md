@@ -43,3 +43,25 @@ At realistic click rates (2.4/s falling to 0.9/s), clicking adds 60% → 14% of 
 15% → 10% in Stage 2's, then 3–5%. Automation is the point, so click upgrades belong only at the start of a stage.
 Late click upgrades were replaced: "A logbook for faults" now makes computers 1.25× faster, and "Space money" makes
 computers cheaper. Normal play takes 11.5–12.8 min.
+
+## 6. Selling computer time (the Stage 2 mechanic)
+Proposals: `design/stage2/10-innovation-brief.md` and 11–14. All four designers converged on selling machine time;
+the open question was whether a sale pays money or a permanent boost. **Decision: money.** A boost would be
+another "×1.5 faster" behind a timer (the very complaint), and "selling" without money would make the name lie.
+Money gives a new decision instead of a new multiplier: two balances fed by one flow, and you choose the split.
+
+- **Opens** with "Magnetic tape" (1951), with the first customer (Census Bureau) and the promotion to Head of computing services.
+- **Control:** "Sell: 0% · 25% · 50% · 75%" of your computer time (starts at 25%). Sold operations still count for the
+  Moon goal, so the goal bar and speed never slow; they become dollars instead of spendable operations.
+- **Customers** (ledger lines, named in the panel) each add demand: Census Bureau, tea shops, an insurer, a bank,
+  an airline, every university. Customers pay $0.10 per operation, only up to their demand; offering more earns nothing,
+  and the panel says so. So the best setting changes as customers arrive and as you save for operation-priced cards.
+- **Money buys** mainframes ($600,000 × 1.2ⁿ) and the "Time-sharing" card. Defence money now means "customers pay 1.5× more".
+- **After the goal** selling stops: every operation goes to the Moon (the 1202 ending line then describes what you did).
+- **Sim:** a bot that compares what each currency buys finishes in 11–13 min (greedy 14–16); a player who never
+  touches the default 25% takes 13–14.5 min; selling nothing takes 26 min (mainframes need money).
+
+## 7. Dev tools
+On localhost only, the footer shows "Dev: Start Stage 1 · Start Stage 2". A stage start uses `startAtStage(n)`, which
+plays the real handover with what a typical player carries (`stage.arrival`: 23,000 per second, 200,000 in hand).
+The simulator's `--stage 2` uses the same function.

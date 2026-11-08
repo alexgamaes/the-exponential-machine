@@ -15,6 +15,8 @@ export const STAGE2 = {
   unitBefore: 'checks',
   unitRenameBeat: 'shannon',
   clickLabel: 'Run a calculation',
+  // What a typical player brings from Stage 1 (sim: 19,000–27,000 per second, about 0.2 M left over).
+  arrival: { legacyRate: 23000, ops: 200e3, lifetime: 3.5e6, clicks: 1500, time: 660 },
   // A click is worth 5% of the speed you carried over (so the first press is in the thousands, not +1).
   clickLegacyFrac: 0.05,
   // Speedometer: ENIAC's 1950 forecast took about 24 hours at ~5,000 operations per second.
@@ -35,6 +37,28 @@ export const STAGE2 = {
     { when: { upgrade: 'chips' }, role: 'Director, computing division' },
   ],
 
+  // Selling computer time: a share of your speed goes to customers for dollars. Mainframes cost dollars.
+  // Each customer adds demand (operations per second they will pay for) and arrives with a ledger line.
+  market: {
+    reveal: { upgrade: 'magneticTape' },
+    price: 0.1,                       // dollars per operation sold
+    levels: [0, 0.25, 0.5, 0.75],
+    customers: [
+      { id: 'census', name: 'Census Bureau', demand: 100e3, when: { upgrade: 'magneticTape' }, date: '1951-03', kind: 'milestone',
+        text: 'Your first customer: the Census Bureau will pay for your spare hours. You can sell computer time now.' },
+      { id: 'teaShops', name: 'Tea shops', demand: 150e3, when: { after: 'magneticTape', delay: 18 }, date: '1951-11',
+        text: 'A chain of tea shops builds its own computer to price its cakes, and still rents yours for the payroll. Of course it is a tea company.' },
+      { id: 'insurer', name: 'An insurance company', demand: 300e3, when: { after: 'coreMemory', delay: 3 }, date: '1953-06',
+        text: 'An insurance company rents time to work out how long its customers will live. It pays on the first of the month.' },
+      { id: 'bank', name: 'A bank', demand: 600e3, when: { after: 'washington', delay: 8 }, date: '1958-06',
+        text: 'A bank wants its cheques read by machine: magnetic ink, thirty-three thousand an hour. It pays by the cheque.' },
+      { id: 'airline', name: 'An airline', demand: 1.5e6, when: { after: 'timeSharing', delay: 6 }, date: '1961-12',
+        text: 'An airline wants every seat on every flight in one machine, answered while the customer waits on the phone.' },
+      { id: 'universities', name: 'Every university', demand: 3e6, when: { after: 'oneFamily', delay: 6 }, date: '1964-05',
+        text: 'Every university wants computer time. The queue of students with card decks runs past midnight.' },
+    ],
+  },
+
   producers: [
     {
       id: C, name: 'Computers', short: 'computers', verb: 'Build', buyLabel: 'Build a computer',
@@ -45,7 +69,7 @@ export const STAGE2 = {
     {
       id: M, name: 'Mainframes', short: 'mainframes', verb: 'Install', buyLabel: 'Install a mainframe',
       each: 'Each runs {out} {unit} per second.',
-      baseCost: 6e6, growth: 1.2, output: 60e3,
+      baseCost: 600e3, growth: 1.2, output: 60e3, currency: 'dollars',
       reveal: { upgrade: 'magneticTape' },
     },
   ],
@@ -95,7 +119,7 @@ export const STAGE2 = {
     },
     {
       id: 'magneticTape', name: 'Magnetic tape', cost: 6.1e6,
-      text: 'Unlocks mainframes. Each runs 60,000 per second.',
+      text: 'Unlocks mainframes and selling computer time. Mainframes are paid for with money.',
       effect: { type: 'unlockProducer', target: M },
       reveal: { lifetime: 12e6 }, date: '1951-03',
       log: 'The Census Bureau buys a computer. The country can now be counted on tape instead of punched cards.',
@@ -114,8 +138,8 @@ export const STAGE2 = {
       effect: {
         type: 'choice',
         options: [
-          { id: 'machines', label: 'Defence money', text: 'Mainframes get cheaper: each one costs 12% more than the last, not 20%.',
-            effect: { type: 'costGrowth', target: M, value: 1.12 } },
+          { id: 'machines', label: 'Defence money', text: 'Customers pay 1.5× more for your computer time.',
+            effect: { type: 'priceMul', value: 1.5 } },
           { id: 'people', label: 'Space money', text: 'Computers get cheaper: each one costs 10% more than the last, not 17%.',
             effect: { type: 'costGrowth', target: C, value: 1.10 } },
         ],
@@ -131,10 +155,10 @@ export const STAGE2 = {
       log: 'MEMO. Re: valves. Discontinue. Noyce has printed a whole circuit flat on silicon. Every chip you will ever buy starts on his page.',
     },
     {
-      id: 'timeSharing', name: 'Time-sharing', cost: 45e6,
+      id: 'timeSharing', name: 'Time-sharing', cost: 4.5e6, currency: 'dollars',
       text: 'Mainframes work 1.5× faster.',
       effect: { type: 'producerMul', target: M, value: 1.5 },
-      reveal: { lifetime: 88e6 }, date: '1961-11',
+      reveal: { lifetime: 88e6, upgrade: 'chips' }, date: '1961-11',
       log: 'MEMO. Many people now share one mainframe, each at their own typewriter. Every one of them thinks it is theirs alone.',
     },
     {
@@ -196,8 +220,6 @@ export const STAGE2 = {
       text: 'Your new machines now outrun everything you did in the war. Nobody here knows what that means. You do.' },
     { id: 'turingAsks', when: { after: 'weather', delay: 15 }, date: '1950-10',
       text: 'The shy mathematician from the train asks in print whether machines can think. Most readers laugh. He was used to that.' },
-    { id: 'tea', when: { after: 'magneticTape', delay: 18 }, date: '1951-11',
-      text: 'A chain of tea shops builds its own computer to price its cakes. Of course it is a tea company.' },
     { id: 'conviction', when: { after: 'magneticTape', delay: 38 }, date: '1952-03',
       text: 'Turing is in the papers. Not for the war; no one may know about the war. He is convicted for loving a man.' },
     { id: 'election', when: { after: 'magneticTape', delay: 55 }, date: '1952-11',

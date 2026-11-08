@@ -10,6 +10,7 @@ npm run serve          # or: python3 -m http.server 8000
 # open http://localhost:8000
 ```
 (Opening `index.html` straight from disk won't work: browsers block ES modules on file://.)
+On localhost the footer has dev buttons to start any stage fresh, with the resources a typical player brings.
 
 ## Test the pacing
 ```bash
@@ -18,6 +19,7 @@ npm run sim -- --profile average --choice machines --verbose   # one run with a 
 npm run sim -- --data '{"clerk":{"growth":1.15}}'               # try a balance change
 npm run sim -- --config '{"revealGapSec":12}'                    # try an engine setting
 npm run sim -- --stage 2 --legacy 19000                          # play Stage 2 alone
+npm run sim -- --sell 0.25                                       # a player who never changes how much time is sold
 ```
 The simulator plays the real engine (`src/engine.js`) through every built stage in a row,
 with 6 player styles × 2 choices, and fails

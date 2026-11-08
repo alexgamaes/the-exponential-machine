@@ -77,6 +77,7 @@ export function render(s) {
   const total = E.stageTotal(s);
   show($('total'), total > s.ops + 0.5);
   set($('total-text'), E.phrase(s, 'total', { n: fmt(total) }));
+  renderMarket(s, unit);
   show($('rate'), s.clicks > 0 || rate > 0);
   set($('rate'), `+${fmt(rate, 1)} per second   ·   +${fmt(clickValue, 1)} per click`);
   // Team line: team speed only (no clicks), rounded, so it changes only when you buy something.
@@ -132,8 +133,8 @@ export function render(s) {
     set(el.owned, `${n} owned`);
     const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace('1 guesses', '1 guess');
     set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} ${unit} per second.` : ''));
-    set(el.cost, `${fmt(Math.ceil(cost))} ${unit}`);
-    const can = s.phase === 'playing' && s.ops >= cost;
+    set(el.cost, price(p, Math.ceil(cost), unit));
+    const can = s.phase === 'playing' && E.wallet(s, p) >= cost;
     if (el.btn.disabled === can) el.btn.disabled = !can;
     show(el.btn, s.phase === 'playing');
   }
@@ -147,11 +148,13 @@ export function render(s) {
   for (const u of open) {
     let el = cardEls.get(u.id);
     if (!el) { el = makeCard(u); cardEls.set(u.id, el); }
-    const can = s.ops >= u.cost;
+    const have = E.wallet(s, u);
+    const can = have >= u.cost;
     toggle(el.root, 'affordable', can);
     toggle(el.root, 'unaffordable', !can);
-    fill(el.progress, s.ops / u.cost);
-    set(el.cost, `${fmt(u.cost)} ${unit}` + (can ? '' : cardEta(u.id, u.cost - s.ops, eff)));
+    fill(el.progress, have / u.cost);
+    const income = u.currency === 'dollars' ? E.sellFlow(s).dollarsPerSec : eff * (1 - E.sellShare(s));
+    set(el.cost, price(u, u.cost, unit) + (can ? '' : cardEta(u.id, u.cost - have, income)));
     for (const b of el.optionBtns) if (b.disabled === can) b.disabled = !can;
   }
   // locked preview card (the next thing to aim for)
@@ -163,7 +166,7 @@ export function render(s) {
     }
     set(lockedEl.name, locked.upgrade.name);
     const p = locked.progress;
-    set(lockedEl.cost, `${fmt(locked.upgrade.cost)} ${unit}`);
+    set(lockedEl.cost, price(locked.upgrade, locked.upgrade.cost, unit));
     set(lockedEl.needs, p ? `Locked: ${p.phrase.charAt(0).toLowerCase() + p.phrase.slice(1)} (${fmt(p.have)} of ${fmt(p.need)}${p.unitLabel && p.kind !== 'lifetime' ? ' ' + p.unitLabel : ''}).` : 'Coming soon.');
   }
   // Cards in data order, locked preview last. Only touch the DOM when the order changes,
@@ -392,3 +395,30 @@ function renderUnit(unit) {
   }, 450);
 }
 const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+
+// ---------- money ----------
+const price = (item, n, unit) => item.currency === 'dollars' ? money(n) : `${fmt(n)} ${unit}`;
+const money = (n) => '$' + fmt(n);
+
+function renderMarket(s, unit) {
+  const st = E.stageData(s);
+  const open = E.sellOpen(s);
+  show($('market'), open);
+  show($('money'), !!st.market && (open || s.dollars > 0) && s.phase !== 'next');
+  if (!st.market) return;
+  const flow = E.sellFlow(s);
+  set($('money-text'), `Money: ${money(s.dollars)}` + (flow.dollarsPerSec > 0 ? `  ·  +${money(flow.dollarsPerSec)} per second` : ''));
+  if (!open) return;
+  for (const b of $('market').querySelectorAll('[data-action="sell"]')) {
+    const on = Number(b.dataset.value) === s.sell;
+    if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
+  }
+  const want = E.sellDemand(s);
+  let status;
+  if (s.sell === 0) status = `You sell nothing. Customers would pay for up to ${fmt(want)} ${unit} per second.`;
+  else if (flow.offered > want * 1.0001)
+    status = `You offer ${fmt(sig2(flow.offered))} ${unit} per second, but customers only want ${fmt(want)}. The rest earns nothing.`;
+  else status = `You sell ${fmt(sig2(flow.offered))} ${unit} per second. Customers want up to ${fmt(want)}.`;
+  set($('sell-status'), status);
+  set($('sell-customers'), 'Customers: ' + E.customers(s).map(c => c.name).join(', ') + '.');
+}

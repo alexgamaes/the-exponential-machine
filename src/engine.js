@@ -6,7 +6,7 @@ import { STAGE1 } from './data/stage1.js';
 import { STAGE2 } from './data/stage2.js';
 
 export const STAGES = { 1: STAGE1, 2: STAGE2 };
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
@@ -39,6 +39,8 @@ export function createState() {
     legacyRate: 0,
     stageStart: { time: 0, lifetime: 0, clicks: 0 }, // conditions and the goal count from here
     hushUntil: 0,     // no reveals or story lines until then (a quiet moment after a heavy beat)
+    dollars: 0,       // money from selling computer time (Stage 2 on)
+    sell: 0.25,       // share of computer time offered to customers
     _clickAcc: 0,
     _clickRate: 0,    // smoothed clicks per second (for the speedometer)
   };
@@ -50,7 +52,7 @@ export function createState() {
 
 function upgradeEffects(s) {
   const st = stageData(s);
-  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, mul: {}, growth: {}, unlocked: {} };
+  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, mul: {}, growth: {}, unlocked: {} };
   const apply = (e) => {
     switch (e.type) {
       case 'clickMul': fx.clickMul *= e.value; break;
@@ -59,6 +61,7 @@ function upgradeEffects(s) {
       case 'synergy': fx.synergy += e.value; break;
       case 'producerMul': fx.mul[e.target] = (fx.mul[e.target] || 1) * e.value; break;
       case 'costGrowth': fx.growth[e.target] = e.value; break;
+      case 'priceMul': fx.priceMul *= e.value; break;
       case 'unlockProducer': fx.unlocked[e.target] = true; break;
     }
   };
@@ -188,12 +191,52 @@ export function click(s, n = 1) {
   return v;
 }
 
+// ---------- selling computer time (a second currency: dollars) ----------
+// Part of the speed can be sold to customers. Sold operations still count towards the stage goal,
+// but they earn dollars instead of spendable operations. Customers only pay for what they want.
+
+export function sellOpen(s) {
+  const m = stageData(s).market;
+  return !!m && s.phase === 'playing' && conditionMet(s, m.reveal);
+}
+export function sellShare(s) { return sellOpen(s) ? s.sell : 0; }
+export function moneyPerOp(s, fx = upgradeEffects(s)) { return (stageData(s).market?.price || 0) * fx.priceMul; }
+// Operations per second that customers want: the sum of every customer who has arrived.
+export function sellDemand(s) {
+  const m = stageData(s).market;
+  if (!m) return 0;
+  let d = 0;
+  for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand;
+  return d;
+}
+export function customers(s) {
+  const m = stageData(s).market;
+  return m ? m.customers.filter(c => s.beats[c.id] !== undefined) : [];
+}
+// What selling does right now: offered and paid operations per second, and dollars per second.
+export function sellFlow(s, fx = upgradeEffects(s)) {
+  const offered = sellShare(s) * getRate(s, fx);
+  const paid = Math.min(offered, sellDemand(s));
+  return { offered, paid, dollarsPerSec: paid * moneyPerOp(s, fx) };
+}
+export function setSell(s, share) {
+  const m = stageData(s).market;
+  if (!m || !m.levels.includes(share)) return false;
+  s.sell = share;
+  return true;
+}
+// Which balance an item is paid from.
+export function wallet(s, item) { return item.currency === 'dollars' ? s.dollars : s.ops; }
+function pay(s, item, cost) { if (item.currency === 'dollars') s.dollars -= cost; else s.ops -= cost; }
+export function producerById(s, id) { return stageData(s).producers.find(p => p.id === id); }
+
 export function buyProducer(s, id) {
-  // After Colossus the team is complete: no more hiring, every check goes to the finale.
+  // After the stage goal the team is complete: no more hiring, everything goes to the finale.
   if (s.phase !== 'playing' || !producerUnlocked(s, id)) return false;
   const cost = producerCost(s, id);
-  if (s.ops < cost) return false;
-  s.ops -= cost;
+  const p = producerById(s, id);
+  if (wallet(s, p) < cost) return false;
+  pay(s, p, cost);
   s.producers[id] += 1;
   checkBeats(s);
   return true;
@@ -203,7 +246,7 @@ export function upgradeById(s, id) { return stageData(s).upgrades.find(u => u.id
 
 export function canBuyUpgrade(s, id) {
   const u = upgradeById(s, id);
-  return !!u && isActive(s) && s.revealed[id] !== undefined && !(id in s.bought) && s.ops >= u.cost;
+  return !!u && isActive(s) && s.revealed[id] !== undefined && !(id in s.bought) && wallet(s, u) >= u.cost;
 }
 
 export function buyUpgrade(s, id, optionId) {
@@ -213,7 +256,7 @@ export function buyUpgrade(s, id, optionId) {
     if (!u.effect.options.some(o => o.id === optionId)) return false;
     s.choices[id] = optionId;
   }
-  s.ops -= u.cost;
+  pay(s, u, u.cost);
   s.bought[id] = s.time;
   addLog(s, u.log, u.date, 'upgrade');
   checkBeats(s);
@@ -268,6 +311,23 @@ export function passLedger(s) {
   return true;
 }
 
+// A fresh game that starts at stage n, as if the earlier stages had just been played
+// (each stage's `arrival` holds what a typical player carries into it). Used by the dev buttons and the simulator.
+export function startAtStage(n, over = {}) {
+  const s = createState();
+  for (let k = 2; k <= n && STAGES[k]; k++) {
+    const a = { ...STAGES[k].arrival, ...(k === n ? over : {}) };
+    s.stage = k - 1;
+    s.producers = Object.fromEntries(STAGES[k - 1].producers.map(p => [p.id, 0]));
+    s.legacyRate = a.legacyRate; s.ops = a.ops;
+    s.lifetime = Math.max(s.lifetime, a.lifetime ?? a.ops); s.clicks = Math.max(s.clicks, a.clicks ?? 0);
+    s.time = Math.max(s.time, a.time ?? 0);
+    s.phase = 'handover';
+    passLedger(s);
+  }
+  return s;
+}
+
 export function enterStage(s, n) {
   const st = STAGES[n];
   s.stage = n;
@@ -290,7 +350,9 @@ export function tick(s, dt) {
   const rate = getRate(s, fx);
   // Production pauses on the "Pass the ledger on" screen, so nobody starts the next stage rich.
   const gain = isActive(s) || s.phase === 'ending' ? rate * dt : 0;
-  s.ops += gain; s.lifetime += gain;
+  const sold = gain * sellShare(s);
+  s.ops += gain - sold; s.lifetime += gain;
+  if (sold > 0) s.dollars += Math.min(sold, sellDemand(s) * dt) * moneyPerOp(s, fx);
   if (rate > s.bestRate) s.bestRate = rate;
 
   // smoothed click rate (time constant ~3 s)
@@ -330,7 +392,8 @@ function revealUpgrades(s) {
 
 function checkBeats(s) {
   const st = stageData(s);
-  for (const b of st.beats) {
+  const all = st.market ? [...st.beats, ...st.market.customers] : st.beats;
+  for (const b of all) {
     if (s.time < s.hushUntil) return;
     if (s.beats[b.id] !== undefined) continue;
     if (conditionMet(s, b.when)) {
@@ -405,6 +468,7 @@ export function deserialize(json) {
   let data;
   try { data = JSON.parse(json); } catch { return null; }
   if (!data || typeof data !== 'object' || !(data.version >= 1 && data.version <= SAVE_VERSION) || !STAGES[data.stage]) return null;
+  // Missing fields (older saves) take their defaults from a fresh state.
   const base = createState();
   const s = { ...base, ...data };
   if (s.lastRevealAt === null) s.lastRevealAt = -Infinity;
@@ -417,6 +481,7 @@ export function deserialize(json) {
     s.version = SAVE_VERSION;
     if (s.stage === 1 && s.phase === 'next') enterStage(s, 2);
   }
+  s.version = SAVE_VERSION;
   return s;
 }
 

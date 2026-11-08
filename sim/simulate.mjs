@@ -5,6 +5,7 @@
 //   node sim/simulate.mjs --profile average --choice machines --verbose   # one run with a timeline
 //   node sim/simulate.mjs --config '{"revealGapSec":12}'                    # override CONFIG
 //   node sim/simulate.mjs --stage 2 --legacy 19000 --carry 200000           # start at Stage 2 alone
+//   node sim/simulate.mjs --sell 0.25                                       # never change how much time is sold
 // By default every run plays all built stages in a row (Stage 1 -> 2 ...) with the same state.
 //
 // Checks per run:
@@ -44,14 +45,9 @@ function clicksAt(sched, t) { let c = 0; for (const [a, b] of sched) if (t >= a)
 
 // Plays every built stage in a row with the same state (or from --stage N with a given legacy).
 function run(profileName, choice, verbose = false) {
-  const s = E.createState();
-  if (fromStage > 1) {
-    // Start at a later stage: pretend the previous one ended with this speed and balance.
-    s.legacyRate = legacyArg ?? 23000; s.ops = carryArg ?? 200000; s.lifetime = s.ops;
-    s.stage = fromStage - 1; s.producers = Object.fromEntries(E.STAGES[s.stage].producers.map(p => [p.id, 0]));
-    s.phase = 'handover';
-    E.passLedger(s);
-  }
+  const s = fromStage > 1
+    ? E.startAtStage(fromStage, { ...(legacyArg !== undefined && { legacyRate: legacyArg }), ...(carryArg !== undefined && { ops: carryArg }) })
+    : E.createState();
   const out = [];
   while (E.isActive(s)) {
     const r = playStage(s, profileName, choice, verbose);
@@ -156,8 +152,33 @@ function playStage(s, profileName, choice, verbose) {
            endRate: E.getRate(s), upgrades: buys.length, fails };
 }
 
+// How much computer time to sell. 'smart' (default) compares what each currency buys right now;
+// --sell 0.25 keeps a fixed share (an idle player who never touches the setting).
+function chooseSell(s) {
+  if (!E.sellOpen(s)) return;
+  if (sellArg !== 'smart') { E.setSell(s, Number(sellArg)); return; }
+  const st = E.stageData(s);
+  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought));
+  const p = E.moneyPerOp(s);
+  const money = st.producers.find(x => x.currency === 'dollars');
+  const ops = st.producers.find(x => x.currency !== 'dollars');
+  // speed bought per operation, either spent directly or sold first
+  let vOps = E.producerOutput(s, ops.id) / E.producerCost(s, ops.id);
+  let vMoney = E.producerOutput(s, money.id) / (E.producerCost(s, money.id) / p);
+  if (open.some(u => u.currency !== 'dollars')) vOps *= 1.5;
+  if (open.some(u => u.currency === 'dollars')) vMoney *= 1.5;
+  const R = E.getRate(s), D = E.sellDemand(s);
+  let best = s.sell, bestV = -1;
+  for (const f of st.market.levels) {
+    const v = vOps * (1 - f) * R + vMoney * Math.min(f * R, D);
+    if (v > bestV + 1e-12) { bestV = v; best = f; }
+  }
+  E.setSell(s, best);
+}
+
 function decide(s, choice, ev, greedy = false) {
   const st = E.stageData(s);
+  chooseSell(s);
   for (let guard = 0; guard < 1000; guard++) {
     if (E.canBuyGoal(s)) { E.buyGoal(s); ev('GOAL', st.goal.name); continue; }
     if (E.canBuyFinale(s)) { const f = E.currentFinale(s); E.buyFinale(s); ev('FINALE', f.name); continue; }
@@ -168,15 +189,19 @@ function decide(s, choice, ev, greedy = false) {
       ev('buy-upgrade', up.name + (opt ? ` (${opt})` : ''));
       continue;
     }
+    // producers paid with money: buy whenever affordable (nothing else competes for dollars except dollar cards)
+    const moneyOpen = st.upgrades.some(u => u.currency === 'dollars' && s.revealed[u.id] !== undefined && !(u.id in s.bought));
+    const mp = st.producers.find(p => p.currency === 'dollars' && E.producerUnlocked(s, p.id));
+    if (mp && !moneyOpen && E.buyProducer(s, mp.id)) { ev('buy-producer', mp.id); continue; }
     // best producer by output per cost
-    const opts = st.producers.filter(p => E.producerUnlocked(s, p.id));
+    const opts = st.producers.filter(p => p.currency !== 'dollars' && E.producerUnlocked(s, p.id));
     if (!opts.length) return;
     const best = opts.reduce((a, b) =>
       E.producerOutput(s, a.id) / E.producerCost(s, a.id) >= E.producerOutput(s, b.id) / E.producerCost(s, b.id) ? a : b);
     const cost = E.producerCost(s, best.id);
     // save for an upgrade (or the goal) that is close
     const eff = E.effectiveRate(s);
-    const targets = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought)).map(u => u.cost);
+    const targets = st.upgrades.filter(u => u.currency !== 'dollars' && s.revealed[u.id] !== undefined && !(u.id in s.bought)).map(u => u.cost);
     const fin = E.currentFinale(s); if (fin) targets.push(fin.cost);
     const near = targets.filter(c => c > s.ops && c < s.ops + eff * SAVE_HORIZON);
     if (near.length && !greedy) return; // something worth having is less than SAVE_HORIZON away: save for it
@@ -200,6 +225,7 @@ const arg = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1
 const fromStage = Number(arg('--stage') || 1);
 const legacyArg = arg('--legacy') !== undefined ? Number(arg('--legacy')) : undefined;
 const carryArg = arg('--carry') !== undefined ? Number(arg('--carry')) : undefined;
+const sellArg = arg('--sell') || 'smart';
 if (arg('--config')) Object.assign(CONFIG, JSON.parse(arg('--config')));
 // --data '{"computer":{"growth":1.2}}' patches producers/upgrades/goal/finale by id (any built stage)
 if (arg('--data')) {

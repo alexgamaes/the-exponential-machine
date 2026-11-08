@@ -40,6 +40,7 @@
       <div id="have-caption"><span class="swatch swatch-balance"></span>You have</div>
       <div id="counter"><span id="ops"></span> <span id="unit"></span></div>
       <div id="total" hidden><span class="swatch swatch-lifetime"></span><span id="total-text"></span></div>
+      <div id="money" hidden><span class="swatch swatch-money"></span><span id="money-text"></span></div>
       <div id="rate" hidden></div>
       <div id="team" hidden></div>
       <div id="click-wrap">
@@ -50,6 +51,7 @@
     </section>
 
     <div id="columns">
+      <div class="col">
       <section id="producers" class="panel" hidden>
         <h2 id="producers-title">Your team</h2>
         <div id="legacy-row" class="legacy" hidden>
@@ -59,6 +61,17 @@
         <div id="producer-list"></div>
         <p id="team-complete" class="muted-note" hidden></p>
       </section>
+      <section id="market" class="panel" hidden>
+        <h2>Sell computer time</h2>
+        <p class="muted-note first">Customers pay money for part of your computer time. Mainframes are paid for with money.</p>
+        <div class="seg" role="group" aria-label="How much computer time to sell">
+          <span class="seg-label">Sell</span>
+          <button data-action="sell" data-value="0">0%</button><button data-action="sell" data-value="0.25">25%</button><button data-action="sell" data-value="0.5">50%</button><button data-action="sell" data-value="0.75">75%</button>
+        </div>
+        <p id="sell-status"></p>
+        <p id="sell-customers" class="muted-note"></p>
+      </section>
+      </div>
       <section id="upgrades" class="panel" hidden>
         <h2>Ideas</h2>
         <div id="upgrade-list"></div>
@@ -82,6 +95,7 @@
 
   <footer>
     <button class="link-btn" data-action="reset">Reset game</button>
+    <div id="dev-tools" hidden></div>
   </footer>
 
   <script type="module" src="src/main.js"></script>

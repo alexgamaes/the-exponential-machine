@@ -93,6 +93,11 @@ document.addEventListener('click', (e) => {
     case 'build-goal': E.buyGoal(s); save(); break;
     case 'finale': E.buyFinale(s); save(); break;
     case 'pass': E.passLedger(s); save(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'sell': E.setSell(s, Number(btn.dataset.value)); break;
+    case 'dev-stage':
+      s = E.startAtStage(Number(btn.dataset.stage));
+      save(); location.reload();
+      break;
     case 'theme': cycleTheme(); break;
     case 'reset':
       if (confirm('Start again from 1939? Your progress will be lost.')) {
@@ -112,6 +117,19 @@ function cycleTheme() {
   if (next === 'system') delete root.dataset.theme; else root.dataset.theme = next;
   try { next === 'system' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, next); } catch (e) {}
   document.getElementById('theme-toggle').title = `Theme: ${next}`;
+}
+
+// ---------- dev tools (only when served from this computer) ----------
+if (['localhost', '127.0.0.1', '::1', '[::1]'].includes(location.hostname)) {
+  const box = document.getElementById('dev-tools');
+  box.hidden = false;
+  box.append('Dev: ');
+  for (const n of Object.keys(E.STAGES)) {
+    const b = document.createElement('button');
+    b.className = 'link-btn'; b.dataset.action = 'dev-stage'; b.dataset.stage = n;
+    b.textContent = `Start Stage ${n}`;
+    box.append(b);
+  }
 }
 
 // Debug handle for the console: window.tem.s, window.tem.E
