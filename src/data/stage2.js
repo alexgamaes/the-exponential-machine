@@ -77,9 +77,9 @@ export const STAGE2 = {
   upgrades: [
     {
       id: 'programmers', name: 'Hire programmers', cost: 300e3,
-      text: 'Each click counts twice.',
-      effect: { type: 'clickMul', value: 2 },
-      reveal: { clicks: 15 }, date: '1946-03',
+      text: 'Computers work 1.25× faster.',
+      effect: { type: 'producerMul', target: C, value: 1.25 },
+      reveal: { owned: { [C]: 1 } }, date: '1946-03',
       log: 'Your first clerk from 1939 answers the advert. She is a programmer now. She keeps a pencil behind her ear anyway.',
     },
     {
@@ -155,7 +155,7 @@ export const STAGE2 = {
       log: 'MEMO. Re: valves. Discontinue. Noyce has printed a whole circuit flat on silicon. Every chip you will ever buy starts on his page.',
     },
     {
-      id: 'timeSharing', name: 'Time-sharing', cost: 4.5e6, currency: 'dollars',
+      id: 'timeSharing', name: 'Time-sharing', cost: 3e6, currency: 'dollars',
       text: 'Mainframes work 1.5× faster.',
       effect: { type: 'producerMul', target: M, value: 1.5 },
       reveal: { lifetime: 88e6, upgrade: 'chips' }, date: '1961-11',
@@ -165,7 +165,7 @@ export const STAGE2 = {
       id: 'oneFamily', name: 'One family of machines', cost: 60e6,
       text: 'Everything works 1.25× faster.',
       effect: { type: 'globalMul', value: 1.25 },
-      reveal: { lifetime: 140e6 }, date: '1964-04',
+      reveal: { lifetime: 140e6, upgrade: 'timeSharing' }, date: '1964-04',
       log: 'IBM bets the company on one idea: every machine, large or small, runs the same programs. The bet pays for decades.',
     },
     {
@@ -192,7 +192,7 @@ export const STAGE2 = {
   ],
 
   goal: {
-    id: 'moonComputer', name: 'Build a computer for the Moon', lifetime: 900e6,
+    id: 'moonComputer', name: 'Build a computer for the Moon', lifetime: 1.3e9,
     text: 'A computer small enough to fly. Everything works 3× faster.',
     effect: { type: 'globalMul', value: 3 },
     date: '1966-08',

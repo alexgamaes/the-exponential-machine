@@ -65,3 +65,8 @@ Money gives a new decision instead of a new multiplier: two balances fed by one 
 On localhost only, the footer shows "Dev: Start Stage 1 · Start Stage 2". A stage start uses `startAtStage(n)`, which
 plays the real handover with what a typical player carries (`stage.arrival`: 23,000 per second, 200,000 in hand).
 The simulator's `--stage 2` uses the same function.
+
+## 8. No click upgrades in Stage 2
+"Hire programmers" (was: each click counts twice, unlocked by 15 clicks by hand) now makes computers 1.25× faster and
+unlocks with the first computer. Stage 2 has no click upgrades at all: clicks are worth 5% of the legacy and fade as machines grow.
+The goal rose to 1.3 billion operations to keep normal play at 11.5–12.3 min.
