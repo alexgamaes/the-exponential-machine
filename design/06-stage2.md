@@ -35,8 +35,8 @@ Brief: `design/stage2/00-brief.md`. This file is the source of truth for Stage 2
 
 ## 4. Verified
 `npm test`: 17 tests. `node sim/simulate.mjs` plays Stage 1 → 2 end to end, 6 profiles × 2 choices:
-Stage 2 takes 10.2–14.2 min (normal play 11.6–13.6), longest quiet stretch ≤ 41 s, speed never drops (including
-across the handover), the ledger never goes back in time, the unit changes once. End speed 1.5–2.9×10⁷.
+Stage 2 takes 11.2–13.1 min (normal play 11.5–12.8), longest quiet stretch ≤ 41 s, speed never drops (including
+across the handover), the ledger never goes back in time, the unit changes once. End speed 2.2–3.2×10⁷.
 
 ## 5. Clicks fade by design
 At realistic click rates (2.4/s falling to 0.9/s), clicking adds 60% → 14% of the speed over Stage 1's first 3 minutes,
