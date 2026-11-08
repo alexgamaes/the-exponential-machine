@@ -2,6 +2,7 @@
 // All functions take the state object and mutate it. Fields starting with '_' are transient (never saved).
 
 import { CONFIG } from './config.js';
+import { fmt } from './format.js';
 import { STAGE1 } from './data/stage1.js';
 import { STAGE2 } from './data/stage2.js';
 
@@ -10,7 +11,7 @@ export const SAVE_VERSION = 3;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
-// 'playing' = building up; 'finale' = Colossus built, last actions of the stage. Both are interactive.
+// 'playing' = building up; 'finale' = stage goal built, last actions of the stage. Both are interactive.
 export function isActive(s) { return s.phase === 'playing' || s.phase === 'finale'; }
 
 export function createState() {
@@ -30,7 +31,6 @@ export function createState() {
     beats: {},        // beatId -> time fired
     date: st.startDate,
     log: [],
-    bestRate: 0,
     phase: 'playing', // 'playing' | 'finale' | 'ending' | 'handover' | 'next'
     goalDone: false,
     finaleIndex: 0,
@@ -44,6 +44,7 @@ export function createState() {
     _clickAcc: 0,
     _clickRate: 0,    // smoothed clicks per second (for the speedometer)
   };
+  addLog(s, st.title, st.startDate, 'stage');
   checkBeats(s);
   return s;
 }
@@ -157,13 +158,12 @@ function conditionMet(s, c) {
   return true;
 }
 
-// Progress towards a condition, for "Needs X. You have Y." Returns {label, have, need} or null.
 // Progress towards a condition, with consistent wording.
-// kind: 'lifetime' (checks ever made, "in total") | 'clicks' ("by hand") | 'owned' (a count) | 'upgrade'.
+// kind: 'lifetime' (made since this stage began, "in total") | 'clicks' ("by hand") | 'owned' (a count) | 'upgrade'.
 export function conditionProgress(s, c) {
   const st = stageData(s);
   if (c.lifetime !== undefined && stageTotal(s) < c.lifetime)
-    return { kind: 'lifetime', phrase: phrase(s, 'lifetime', { n: fmtInt(c.lifetime) }), unitLabel: 'in total',
+    return { kind: 'lifetime', phrase: phrase(s, 'lifetime', { n: fmt(c.lifetime) }), unitLabel: 'in total',
              have: stageTotal(s), need: c.lifetime };
   if (c.clicks !== undefined && stageClicks(s) < c.clicks)
     return { kind: 'clicks', phrase: phrase(s, 'clicks', { n: fmtInt(c.clicks) }), unitLabel: 'by hand',
@@ -277,7 +277,7 @@ export function buyGoal(s) {
   return true;
 }
 
-// Finale: the last actions of the stage, bought one after another with checks.
+// Finale: the last actions of the stage, bought one after another with the stage's unit.
 export function currentFinale(s) {
   if (s.phase !== 'finale') return null;
   return stageData(s).finale[s.finaleIndex] || null;
@@ -303,11 +303,12 @@ export function passLedger(s) {
   const rate = getRate(s);          // computed with the OLD stage's data
   const st = stageData(s);
   for (const p of st.producers) s.producers[p.id] = 0;
-  s.bought = {}; s.choices = {}; s.revealed = {};
-  s.legacyRate = rate;
-  addLog(s, st.next.text, st.next.date, 'milestone');
-  if (STAGES[s.stage + 1]) enterStage(s, s.stage + 1);
-  else s.phase = 'next';            // the next stage is not built yet
+  s.legacyRate = rate;              // (enterStage clears bought/choices/revealed; with no next stage they stay, so the role stays)
+  if (STAGES[s.stage + 1]) enterStage(s, s.stage + 1, st.next);
+  else {                            // the next stage is not built yet
+    addLog(s, st.next.text, st.next.date, 'milestone');
+    s.phase = 'next';
+  }
   return true;
 }
 
@@ -328,7 +329,8 @@ export function startAtStage(n, over = {}) {
   return s;
 }
 
-export function enterStage(s, n) {
+// bridge: the old stage's last line, shown under the new stage's divider.
+export function enterStage(s, n, bridge = null) {
   const st = STAGES[n];
   s.stage = n;
   s.producers = Object.fromEntries(st.producers.map(p => [p.id, 0]));
@@ -337,7 +339,8 @@ export function enterStage(s, n) {
   s.goalDone = false; s.finaleIndex = 0; s.endingIndex = 0; s.endingAt = 0;
   s.stageStart = { time: s.time, lifetime: s.lifetime, clicks: s.clicks };
   s.phase = 'playing';
-  addLog(s, st.title, null, 'stage');
+  addLog(s, st.title, bridge?.date ?? null, 'stage');
+  if (bridge) addLog(s, bridge.text, bridge.date, 'milestone');
   checkBeats(s);                    // the stage's opening line
 }
 
@@ -353,7 +356,6 @@ export function tick(s, dt) {
   const sold = gain * sellShare(s);
   s.ops += gain - sold; s.lifetime += gain;
   if (sold > 0) s.dollars += Math.min(sold, sellDemand(s) * dt) * moneyPerOp(s, fx);
-  if (rate > s.bestRate) s.bestRate = rate;
 
   // smoothed click rate (time constant ~3 s)
   const k = Math.min(1, dt / 3);
@@ -425,10 +427,9 @@ export function nextLocked(s) {
   return null;
 }
 
-// One short-horizon goal for the goal bar. Never null while playing.
 // The goal bar: the stage goal (then the finale steps). Never null while active.
 // Returns { text, have, need, kind, unitLabel, ready, eta }.
-//   kind 'balance' = checks you have (spendable) · 'lifetime' = checks in total · 'owned'/'clicks' = counts.
+//   kind 'balance' = spendable (finale) · 'lifetime' = made this stage · 'ready'.
 export function currentGoal(s) {
   const st = stageData(s);
   if (s.phase === 'finale') {
@@ -441,7 +442,7 @@ export function currentGoal(s) {
   // The goal bar tracks only the stage goal, in one unit (checks in total). It does not tell the
   // player which upgrade to buy: the cards show their own progress, the locked card shows what unlocks next.
   if (canBuyGoal(s)) return { text: st.goal.name, kind: 'ready', ready: true, have: 1, need: 1 };
-  return { text: phrase(s, 'goal', { n: fmtInt(st.goal.lifetime) }),
+  return { text: phrase(s, 'goal', { n: fmt(st.goal.lifetime) }),
            kind: 'lifetime', unitLabel: 'in total', have: stageTotal(s), need: st.goal.lifetime, eta: true,
            frac: stageProgress(s) };
 }
@@ -479,13 +480,14 @@ export function deserialize(json) {
     s.stageStart = { time: 0, lifetime: 0, clicks: 0 };
     s.hushUntil = 0;
     s.version = SAVE_VERSION;
-    if (s.stage === 1 && s.phase === 'next') enterStage(s, 2);
   }
+  // A save that finished the last built stage moves on once the next stage exists.
+  if (s.phase === 'next' && STAGES[s.stage + 1]) enterStage(s, s.stage + 1);
   s.version = SAVE_VERSION;
   return s;
 }
 
-// Apply time away in bounded chunks. Returns ops gained.
+// Apply time away in bounded chunks. Returns the total made (sold time included).
 export function applyOffline(s, seconds) {
   const sec = Math.max(0, Math.min(seconds, CONFIG.offlineMaxSec));
   const before = s.lifetime;

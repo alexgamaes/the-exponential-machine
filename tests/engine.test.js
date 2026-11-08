@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import * as E from '../src/engine.js';
 import { STAGE1 } from '../src/data/stage1.js';
 
-test('starts with one log line, nothing revealed, the goal visible', () => {
+test('starts with the stage divider and one log line, nothing revealed, the goal visible', () => {
   const s = E.createState();
-  assert.equal(s.log.length, 1);
+  assert.equal(s.log.length, 2);
+  assert.equal(s.log[1].kind, 'stage');
   assert.deepEqual(s.revealed, {});
   assert.ok(E.currentGoal(s));
 });
@@ -236,4 +237,61 @@ test('mainframes are paid for with money; selling stops after the goal', () => {
   s.lifetime = s.stageStart.lifetime + STAGE2.goal.lifetime;
   E.buyGoal(s);
   assert.equal(E.sellShare(s), 0, 'every operation now goes to the Moon');
+});
+
+// ---------- housekeeping review additions ----------
+test('finishing the last built stage shows "to be continued", and the save stays there', () => {
+  const s = E.startAtStage(2);
+  s.lifetime = s.stageStart.lifetime + STAGE2.goal.lifetime;
+  E.buyGoal(s);
+  s.ops = 1e15;
+  while (E.currentFinale(s)) E.buyFinale(s);
+  for (let i = 0; i < 1000 && s.phase === 'ending'; i++) E.tick(s, 0.5);
+  const rate = E.getRate(s);
+  assert.equal(E.passLedger(s), true);
+  assert.equal(s.phase, 'next');
+  assert.equal(s.legacyRate, rate);
+  assert.equal(E.currentGoal(s), null);
+  const t = E.deserialize(E.serialize(s));
+  assert.equal(t.phase, 'next');
+  assert.equal(t.stage, 2);
+});
+
+test('money keeps coming in while away, capped by demand', () => {
+  const s = E.startAtStage(2);
+  s.bought.magneticTape = s.time; E.tick(s, 0.01);
+  E.setSell(s, 0.75);
+  const d0 = s.dollars, ops0 = s.ops;
+  const made = E.applyOffline(s, 3600);
+  assert.ok(s.dollars - d0 <= E.sellDemand(s) * E.moneyPerOp(s) * 3600 + 1e-6);
+  assert.ok(s.dollars > d0);
+  assert.ok(Math.abs((s.ops - ops0) - made * 0.25) < 1e-6 * made);
+});
+
+test('a v2 save (before money) loads with no money and 25% sold', () => {
+  const s = E.startAtStage(2);
+  const data = JSON.parse(E.serialize(s));
+  delete data.dollars; delete data.sell; data.version = 2;
+  const t = E.deserialize(JSON.stringify(data));
+  assert.equal(t.dollars, 0);
+  assert.equal(t.sell, 0.25);
+  assert.equal(t.version, E.SAVE_VERSION);
+});
+
+test('every card says what its effect really does', () => {
+  const says = (text, e) => {
+    if (e.type === 'producerMul' || e.type === 'globalMul' || e.type === 'priceMul')
+      return e.value === 2 ? /twice/.test(text) : text.includes(`${e.value}×`);
+    if (e.type === 'costGrowth') return text.includes(`${Math.round((e.value - 1) * 100)}%`);
+    if (e.type === 'clickPct') return text.includes(`${Math.round(e.value * 100)}%`);
+    if (e.type === 'clickMul') return /2 guesses|twice/.test(text);
+    return true; // unlockProducer, synergy: checked by hand
+  };
+  for (const st of [STAGE1, STAGE2]) {
+    for (const u of st.upgrades) {
+      if (u.effect.type === 'choice') for (const o of u.effect.options) assert.ok(says(o.text, o.effect), `${u.id}/${o.id}: ${o.text}`);
+      else assert.ok(says(u.text, u.effect), `${u.id}: ${u.text}`);
+    }
+    assert.ok(says(st.goal.text, st.goal.effect), st.goal.id);
+  }
 });

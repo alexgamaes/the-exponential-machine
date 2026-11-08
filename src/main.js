@@ -24,9 +24,12 @@ function load() {
   return st;
 }
 function awayCatchUp(st, seconds) {
-  if (seconds < 5) return;
+  if (seconds < 5) { E.tick(st, seconds); return; }   // a late frame: just catch up, no note
+  const d0 = st.dollars;
   const gained = E.applyOffline(st, seconds);
-  if (gained > 0) E.note(st, `While you were away (${fmtDuration(Math.min(seconds, CONFIG.offlineMaxSec))}), ${E.phrase(st, 'away', { n: fmt(gained) })}.`);
+  const earned = st.dollars - d0;
+  if (gained > 0) E.note(st, `While you were away (${fmtDuration(Math.min(seconds, CONFIG.offlineMaxSec))}), ${E.phrase(st, 'away', { n: fmt(gained) })}` +
+    (earned >= 1 ? `, and earned $${fmt(earned)}` : '') + '.');
 }
 setInterval(save, SAVE_EVERY_MS);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
@@ -60,7 +63,6 @@ mainBtn.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
   e.preventDefault();
   doClick();
-  mainBtn.classList.add('pressed');
   stopHold();
   mainBtn.classList.add('pressed');
   holdTimer = setTimeout(() => {
@@ -69,11 +71,16 @@ mainBtn.addEventListener('pointerdown', (e) => {
 });
 for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) mainBtn.addEventListener(ev, stopHold);
 mainBtn.addEventListener('contextmenu', (e) => e.preventDefault());
-// Keyboard: Enter/Space on the focused button fire 'click' with detail 0.
-mainBtn.addEventListener('click', (e) => { if (e.detail === 0) doClick(); });
+// Keyboard: Enter/Space on the focused button fire 'click' with detail 0. Held keys repeat, so throttle
+// them to the same rate as holding the mouse button.
+let lastKeyClick = 0;
+mainBtn.addEventListener('click', (e) => {
+  if (e.detail !== 0) return;
+  const now = performance.now();
+  if (now - lastKeyClick >= 1000 / CONFIG.holdRepeatPerSec) { lastKeyClick = now; doClick(); }
+});
 
 // Space anywhere = the main action (held = repeat, throttled to the hold rate).
-let lastKeyClick = 0;
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.target.closest('button, input, textarea')) return;
   e.preventDefault();
@@ -92,7 +99,11 @@ document.addEventListener('click', (e) => {
     case 'choose': E.buyUpgrade(s, id, option); break;
     case 'build-goal': E.buyGoal(s); save(); break;
     case 'finale': E.buyFinale(s); save(); break;
-    case 'pass': E.passLedger(s); save(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'pass':
+      E.passLedger(s); save(); render(s);
+      window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      mainBtn.focus({ preventScroll: true });
+      break;
     case 'sell': E.setSell(s, Number(btn.dataset.value)); break;
     case 'dev-stage':
       s = E.startAtStage(Number(btn.dataset.stage));
@@ -100,9 +111,14 @@ document.addEventListener('click', (e) => {
       break;
     case 'theme': cycleTheme(); break;
     case 'reset':
-      if (confirm('Start again from 1939? Your progress will be lost.')) {
+      // No pop-up: the first press arms the button, a second press within 4 s erases the game.
+      if (btn.dataset.armed) {
         try { localStorage.removeItem(SAVE_KEY); } catch (err) {}
-        s = E.createState(); location.reload();
+        s = E.createState(); save(); location.reload();
+      } else {
+        const label = btn.textContent;
+        btn.dataset.armed = '1'; btn.textContent = 'Press again to erase everything';
+        setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 4000);
       }
       break;
   }
@@ -116,8 +132,16 @@ function cycleTheme() {
   const next = cur === 'system' ? 'light' : cur === 'light' ? 'dark' : 'system';
   if (next === 'system') delete root.dataset.theme; else root.dataset.theme = next;
   try { next === 'system' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, next); } catch (e) {}
-  document.getElementById('theme-toggle').title = `Theme: ${next}`;
+  labelTheme();
 }
+function labelTheme() {
+  const cur = document.documentElement.dataset.theme || 'system';
+  const next = cur === 'system' ? 'light' : cur === 'light' ? 'dark' : 'system';
+  const btn = document.getElementById('theme-toggle');
+  btn.title = `Theme: ${cur} (press for ${next})`;
+  btn.setAttribute('aria-label', btn.title);
+}
+labelTheme();
 
 // ---------- dev tools (only when served from this computer) ----------
 if (['localhost', '127.0.0.1', '::1', '[::1]'].includes(location.hostname)) {

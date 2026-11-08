@@ -1,12 +1,12 @@
 // Stage 1 — The Codebreaker (1939–1945).
-// Pure data. Numbers come from design/05-game-design.md §4; tune them here or in config.js.
+// Pure data. Numbers are tuned with sim/simulate.mjs (history of changes in design/05-game-design.md §8–9).
 // Dates are 'YYYY-MM'. The header date is the latest date of anything that has happened.
 
 export const STAGE1 = {
   id: 1,
   era: '1939',
   role: 'Codebreaker',
-  title: 'The Codebreakers',
+  title: 'Stage 1 · The codebreakers',
   startDate: '1939-09',
   unit: 'checks',
   clickLabel: 'Check a guess',
@@ -114,13 +114,13 @@ export const STAGE1 = {
         ],
       },
       reveal: { lifetime: 12000 }, date: '1941-10',
-      log: 'Four codebreakers write to the Prime Minister over everyone\'s head. Churchill replies in red ink: ACTION THIS DAY.',
+      log: 'Four codebreakers write to the Prime Minister over everyone\'s head. His answer comes back with a red label: ACTION THIS DAY.',
     },
     {
       id: 'cardIndex', name: 'Shared card index', cost: 24000,
       text: 'Each machine makes every clerk 2% faster.',
       effect: { type: 'synergy', value: 0.02 },
-      reveal: { owned: { machine: 12 } }, date: '1942-01',
+      reveal: { owned: { machine: 12 } }, date: '1942-03',
       log: 'Every name, place and call sign goes on a card. The clerks check the machines\' answers against a million of them.',
     },
     {
@@ -155,17 +155,17 @@ export const STAGE1 = {
 
   goal: {
     id: 'colossus', name: 'Build Colossus', lifetime: 650000,
-    text: 'The first electronic computer. Everything works 3× faster.',
+    text: 'The first programmable electronic computer. Everything works 3× faster.',
     effect: { type: 'globalMul', value: 3 },
     date: '1944-02',
-    log: 'Flowers was told valves would fail. He built Colossus with sixteen hundred of them. It works, and it is fast.',
+    log: 'Flowers is told valves will fail. He builds Colossus with sixteen hundred of them. It works, and it is fast.',
   },
 
   // Story beats: log only, they never change the numbers.
   // when: { lifetime } | { owned: {id: n} } | { after: upgradeId, delay: seconds } | { rate }
   beats: [
     { id: 'start', when: { lifetime: 0 }, date: '1939-09',
-      text: '3 September 1939. War is declared at 11:15. You are given a desk, a pencil and a basket of intercepted radio messages.' },
+      text: '3 September 1939, 11:15. The radio says Britain is at war. You are given a desk, a pencil and a basket of intercepted radio messages.' },
     { id: 'keyspace', when: { lifetime: 25 }, date: '1939-09',
       text: 'Each guess you rule out is one fewer to try. The book says there are 158 million million million.' },
     { id: 'firstClerk', when: { owned: { clerk: 1 } }, date: '1939-09',
@@ -174,21 +174,21 @@ export const STAGE1 = {
       text: 'A shy mathematician from Cambridge arrives by train. He will think about this problem more than anyone alive.' },
     { id: 'firstRead', when: { lifetime: 300 }, date: '1940-01',
       text: 'The first message comes out in plain German: WEATHER BISCAY RAIN WIND WEST FOUR. It is the weather. It is always the weather.' },
-    { id: 'chairs', when: { owned: { clerk: 10 } }, date: '1940-02',
+    { id: 'chairs', when: { owned: { clerk: 10 } }, date: '1940-01',
       text: 'Ten clerks now. The hut is running out of chairs.' },
-    { id: 'pencil', when: { owned: { machine: 1 } }, date: '1940-04',
+    { id: 'pencil', when: { owned: { machine: 1 } }, date: '1940-05',
       text: 'Your first clerk is moved to the machine room. She says she misses the pencil.' },
     { id: 'herivel', when: { after: 'machineBlueprint', delay: 30 }, date: '1940-05',
-      text: 'Herivel, twenty, pictures a sleepy enemy operator at dawn. A guess about laziness becomes a weapon.' },
+      text: 'Herivel, twenty-one, pictures a sleepy enemy operator at dawn. A guess about laziness becomes a weapon.' },
     { id: 'convoys', when: { after: 'wrens', delay: 12 }, date: '1941-06',
-      text: 'The navy\'s messages can be read. Convoys steer around the waiting U-boats. Ships stop sinking.' },
+      text: 'The navy\'s messages can be read. Convoys steer around the waiting U-boats. Far fewer ships go down.' },
     { id: 'dark', when: { after: 'churchillLetter', delay: 15 }, date: '1942-02',
       text: 'February 1942. The U-boats add a fourth wheel to their machine. Overnight, the Atlantic goes dark.' },
     { id: 'late', when: { after: 'churchillLetter', delay: 40 }, date: '1942-03',
       text: 'A message is broken at last. It reaches the Admiralty four hours after the convoy was attacked. We were not fast enough.' },
     { id: 'faster', when: { after: 'churchillLetter', delay: 46 }, date: '1942-03',
       text: 'Nobody in the hut says it out loud, but everyone thinks it: faster. We have to be faster.' },
-    { id: 'colossusRumour', when: { after: 'americanMachines', delay: 15 }, date: '1943-11',
+    { id: 'colossusRumour', when: { after: 'americanMachines', delay: 15 }, date: '1943-03',
       text: 'At the Post Office research station, an engineer named Flowers says he can build a machine out of valves. Nobody believes him.' },
   ],
 
@@ -198,7 +198,7 @@ export const STAGE1 = {
       text: 'Confirm the enemy still expects the landings in the wrong place.',
       date: '1944-06',
       log: 'June 1944. Five days before the landings, a second Colossus starts work. Berlin is still watching the wrong beach.' },
-    { id: 'winWar', name: 'Win the war', cost: 1200000,
+    { id: 'winWar', name: 'Win the war', cost: 1000000,
       text: 'Ends this stage.',
       date: '1945-05',
       log: '8 May 1945. Bells ring in the village. Nobody in the hut can say why they are crying.' },

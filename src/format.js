@@ -14,15 +14,18 @@ export function fmt(n, decimals = 0) {
   const group = Math.floor(exp / 3) - 2; // 0 = million
   if (group < WORDS.length) {
     const v = n / Math.pow(10, (group + 2) * 3);
-    return `${sig3(v)} ${WORDS[group]}`;
+    const t = sig3(v);
+    if (t === '1000') return group + 1 < WORDS.length ? `1.00 ${WORDS[group + 1]}` : '1.00 × 10' + String((group + 3) * 3).split('').map(c => SUP[c]).join('');
+    return `${t} ${WORDS[group]}`;
   }
   const m = n / Math.pow(10, exp);
   return `${sig3(m)} × 10${String(exp).split('').map(c => SUP[c]).join('')}`;
 }
 
 function sig3(v) {
-  if (v >= 100) return v.toFixed(0);
-  if (v >= 10) return v.toFixed(1);
+  // round first, so 99.99 reads "100" (not "100.0") and 9.999 reads "10.0"
+  if (v >= 99.95) return v.toFixed(0);
+  if (v >= 9.995) return v.toFixed(1);
   return v.toFixed(2);
 }
 

@@ -60,14 +60,11 @@ function run(profileName, choice, verbose = false) {
     const before = E.getRate(s), balance = s.ops;
     E.tick(s, 30); // sitting on the handover screen earns nothing
     if (s.ops !== balance) r.fails.push('production did not pause on the handover screen');
-    const unitBefore = E.unitName(s);
     if (!E.passLedger(s)) { r.fails.push('passLedger failed'); break; }
     if (Math.abs(E.getRate(s) - before) > 1e-6 * before) r.fails.push('speed changed at the handover');
     if (E.isActive(s)) {
       if (Object.keys(s.revealed).length || Object.values(s.producers).some(n => n)) r.fails.push('next stage did not start empty');
-      r.carry = s.ops;
     }
-    void unitBefore;
   }
   return out;
 }
@@ -206,7 +203,7 @@ function decide(s, choice, ev, greedy = false) {
     const near = targets.filter(c => c > s.ops && c < s.ops + eff * SAVE_HORIZON);
     if (near.length && !greedy) return; // something worth having is less than SAVE_HORIZON away: save for it
     if (s.ops < cost) return;
-    E.buyProducer(s, best.id);
+    if (!E.buyProducer(s, best.id)) return;   // hiring is closed after the goal
     ev('buy-producer', best.id);
   }
 }

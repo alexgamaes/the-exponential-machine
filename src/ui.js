@@ -66,7 +66,7 @@ export function render(s) {
   set($('era-date'), fmtDate(s.date));
   const role = E.roleName(s);
   set($('era-role'), role);
-  if (role !== shownRole) { if (shownRole !== null) pulse($('era-role'), 'promoted', 2000); shownRole = role; }
+  if (role !== shownRole) { if (shownRole !== null) { pulse($('era-role'), 'promoted', 2000); announce(`You are now ${role}.`); } shownRole = role; }
 
   // goal bar
   renderGoal(E.currentGoal(s), eff);
@@ -75,11 +75,13 @@ export function render(s) {
   set($('ops'), fmt(s.ops));
   renderUnit(unit);
   const total = E.stageTotal(s);
-  show($('total'), total > s.ops + 0.5);
+  show($('total'), Math.abs(total - s.ops) > 0.5);
   set($('total-text'), E.phrase(s, 'total', { n: fmt(total) }));
   renderMarket(s, unit);
   show($('rate'), s.clicks > 0 || rate > 0);
-  set($('rate'), `+${fmt(rate, 1)} per second   ·   +${fmt(clickValue, 1)} per click`);
+  const canClick = E.isActive(s) || s.phase === 'ending';
+  const sold = E.sellShare(s);
+  set($('rate'), `+${fmt(rate, 1)} per second` + (sold ? ` (${Math.round(sold * 100)}% sold)` : '') + (canClick ? `   ·   +${fmt(clickValue, 1)} per click` : ''));
   // Team line: team speed only (no clicks), rounded, so it changes only when you buy something.
   show($('team'), rate > 0);
   if (rate > 0) {
@@ -95,7 +97,8 @@ export function render(s) {
   }
   const mainBtn = $('main-btn');
   set(mainBtn, st.clickLabel);
-  show(mainBtn, E.isActive(s) || s.phase === 'ending');
+  show(mainBtn, canClick);
+  show($('click-wrap'), canClick || s.phase === 'handover');
   show($('pass-btn'), s.phase === 'handover');
 
   // producers
@@ -131,8 +134,8 @@ export function render(s) {
     const n = s.producers[p.id];
     const cost = E.producerCost(s, p.id);
     set(el.owned, `${n} owned`);
-    const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace('1 guesses', '1 guess');
-    set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} ${unit} per second.` : ''));
+    const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace(/^Each checks 1 guesses/, 'Each checks 1 guess');
+    set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} per second.` : ''));
     set(el.cost, price(p, Math.ceil(cost), unit));
     const can = s.phase === 'playing' && E.wallet(s, p) >= cost;
     if (el.btn.disabled === can) el.btn.disabled = !can;
@@ -153,7 +156,7 @@ export function render(s) {
     toggle(el.root, 'affordable', can);
     toggle(el.root, 'unaffordable', !can);
     fill(el.progress, have / u.cost);
-    const income = u.currency === 'dollars' ? E.sellFlow(s).dollarsPerSec : eff * (1 - E.sellShare(s));
+    const income = u.currency === 'dollars' ? E.sellFlow(s).dollarsPerSec : rate * (1 - E.sellShare(s)) + (eff - rate); // clicks are never sold
     set(el.cost, price(u, u.cost, unit) + (can ? '' : cardEta(u.id, u.cost - have, income)));
     for (const b of el.optionBtns) if (b.disabled === can) b.disabled = !can;
   }
@@ -167,11 +170,13 @@ export function render(s) {
     set(lockedEl.name, locked.upgrade.name);
     const p = locked.progress;
     set(lockedEl.cost, price(locked.upgrade, locked.upgrade.cost, unit));
-    set(lockedEl.needs, p ? `Locked: ${p.phrase.charAt(0).toLowerCase() + p.phrase.slice(1)} (${fmt(p.have)} of ${fmt(p.need)}${p.unitLabel && p.kind !== 'lifetime' ? ' ' + p.unitLabel : ''}).` : 'Coming soon.');
+    const why = p ? p.phrase.charAt(0).toLowerCase() + p.phrase.slice(1) : '';
+    set(lockedEl.needs, !p ? (open.length >= 2 ? 'Appears when you buy one of the ideas above.' : 'Appears in a moment.')
+      : p.kind === 'upgrade' ? `Locked: ${why}.` : `Locked: ${why} (${fmt(p.have)} of ${fmt(p.need)}).`);
   }
   // Cards in data order, locked preview last. Only touch the DOM when the order changes,
   // so a button never moves between mouse-down and mouse-up.
-  // Stage-end card (Colossus when ready, then each finale action) goes first.
+  // Stage-end card (the stage goal when ready, then each finale action) goes first.
   const big = bigCard(s, st, unit);
   const wanted = open.map(u => cardEls.get(u.id).root);
   if (big) wanted.unshift(big);
@@ -201,7 +206,7 @@ function cardEta(id, missing, eff) {
 // ---------- goal bar ----------
 // Each goal kind has a fixed identity (tag + colour + bar texture, see design/03b §d).
 // When the kind changes, the bar drains, swaps, and refills, so the switch is visible.
-const TAGS = { balance: 'SAVE UP', lifetime: 'IN TOTAL', owned: 'TEAM', clicks: 'BY HAND', ready: 'READY' };
+const TAGS = { balance: 'SAVE UP', lifetime: 'IN TOTAL', ready: 'READY' };
 let goalKind = null, goalSwitching = false;
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -224,12 +229,6 @@ function applyGoal(goal, eff) {
   set($('goal-tag'), TAGS[goal.kind] || '');
   set($('goal-text'), goal.text);
   set($('goal-nums'), goalNums(goal, eff));
-  const bar = box.querySelector('.bar');
-  const segmented = (goal.kind === 'owned' || goal.kind === 'clicks') && goal.need <= 20;
-  toggle(bar, 'segmented', segmented);
-  if (segmented) bar.style.setProperty('--segments', goal.need);
-  // outline the producer button the TEAM goal is about
-  for (const [id, el] of prodEls) toggle(el.btn, 'goal-target', goal.kind === 'owned' && goal.target === id);
 }
 
 function renderGoal(goal, eff) {
@@ -244,6 +243,7 @@ function renderGoal(goal, eff) {
     const first = goalKind === null;
     const toReady = goal.kind === 'ready';
     goalKind = goal.kind;
+    etaAt = 0; // never carry the old goal's time estimate over
     lastGoalText = goal.text;
     if (first || reducedMotion() || toReady) {
       document.body.dataset.goalKind = goal.kind;
@@ -284,7 +284,7 @@ function outline(box) {
   outline.t = setTimeout(() => box.classList.remove('kind-changed'), 700);
 }
 
-// One persistent "milestone" card reused for Build Colossus and the finale actions.
+// One persistent "milestone" card reused for the stage goal and the finale actions.
 let bigEl = null;
 function bigCard(s, st, unit) {
   let item = null, action = null, costText = '', can = false;
@@ -420,5 +420,6 @@ function renderMarket(s, unit) {
     status = `You offer ${fmt(sig2(flow.offered))} ${unit} per second, but customers only want ${fmt(want)}. The rest earns nothing.`;
   else status = `You sell ${fmt(sig2(flow.offered))} ${unit} per second. Customers want up to ${fmt(want)}.`;
   set($('sell-status'), status);
-  set($('sell-customers'), 'Customers: ' + E.customers(s).map(c => c.name).join(', ') + '.');
+  const names = E.customers(s).map(c => c.name).join(', ');
+  set($('sell-customers'), 'Customers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.');
 }

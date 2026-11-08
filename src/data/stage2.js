@@ -1,5 +1,5 @@
 // Stage 2 — The Computing Lab (1946–1971).
-// Pure data. Numbers: design/stage2/04-systems.md. History: 01-historian.md. Story: 02-plot.md.
+// Pure data. Numbers: design/06-stage2.md (changed since stage2/04-systems.md). History: 01-historian.md. Story: 02-plot.md.
 // Merged design: design/06-stage2.md. Every total in a condition counts from the start of this stage.
 
 const C = 'computer', M = 'mainframe';
@@ -15,7 +15,7 @@ export const STAGE2 = {
   unitBefore: 'checks',
   unitRenameBeat: 'shannon',
   clickLabel: 'Run a calculation',
-  // What a typical player brings from Stage 1 (sim: 19,000–27,000 per second, about 0.2 M left over).
+  // What a typical player brings from Stage 1 (sim: 19,000–34,000 per second, 27,000 or less outside greedy play; about 0.2 M left over).
   arrival: { legacyRate: 23000, ops: 200e3, lifetime: 3.5e6, clicks: 1500, time: 660 },
   // A click is worth 5% of the speed you carried over (so the first press is in the thousands, not +1).
   clickLegacyFrac: 0.05,
@@ -44,17 +44,17 @@ export const STAGE2 = {
     price: 0.1,                       // dollars per operation sold
     levels: [0, 0.25, 0.5, 0.75],
     customers: [
-      { id: 'census', name: 'Census Bureau', demand: 100e3, when: { upgrade: 'magneticTape' }, date: '1951-03', kind: 'milestone',
-        text: 'Your first customer: the Census Bureau will pay for your spare hours. You can sell computer time now.' },
-      { id: 'teaShops', name: 'Tea shops', demand: 150e3, when: { after: 'magneticTape', delay: 18 }, date: '1951-11',
-        text: 'A chain of tea shops builds its own computer to price its cakes, and still rents yours for the payroll. Of course it is a tea company.' },
-      { id: 'insurer', name: 'An insurance company', demand: 300e3, when: { after: 'coreMemory', delay: 3 }, date: '1953-06',
+      { id: 'census', name: 'the Census Bureau', demand: 100e3, when: { upgrade: 'magneticTape' }, date: '1951-03', kind: 'milestone',
+        text: 'Your first customer: the Census Bureau has more to count than its new machine can manage. It will pay for your spare hours.' },
+      { id: 'teaShops', name: 'a tea company', demand: 150e3, when: { after: 'magneticTape', delay: 18 }, date: '1951-11',
+        text: 'A chain of tea shops has its own computer for pricing cakes, and still rents yours for the payroll. Of course it is a tea company.' },
+      { id: 'insurer', name: 'an insurance company', demand: 300e3, when: { after: 'coreMemory', delay: 46 }, date: '1954-10',
         text: 'An insurance company rents time to work out how long its customers will live. It pays on the first of the month.' },
-      { id: 'bank', name: 'A bank', demand: 600e3, when: { after: 'washington', delay: 8 }, date: '1958-06',
+      { id: 'bank', name: 'a bank', demand: 600e3, when: { after: 'washington', delay: 8 }, date: '1958-06',
         text: 'A bank wants its cheques read by machine: magnetic ink, thirty-three thousand an hour. It pays by the cheque.' },
-      { id: 'airline', name: 'An airline', demand: 1.5e6, when: { after: 'timeSharing', delay: 6 }, date: '1961-12',
+      { id: 'airline', name: 'an airline', demand: 1.5e6, when: { after: 'timeSharing', delay: 6 }, date: '1961-12',
         text: 'An airline wants every seat on every flight in one machine, answered while the customer waits on the phone.' },
-      { id: 'universities', name: 'Every university', demand: 3e6, when: { after: 'oneFamily', delay: 6 }, date: '1964-05',
+      { id: 'universities', name: 'every university', demand: 3e6, when: { after: 'oneFamily', delay: 6 }, date: '1964-05',
         text: 'Every university wants computer time. The queue of students with card decks runs past midnight.' },
     ],
   },
@@ -76,7 +76,7 @@ export const STAGE2 = {
 
   upgrades: [
     {
-      id: 'programmers', name: 'Hire programmers', cost: 300e3,
+      id: 'programmers', name: 'Programmers wanted', cost: 300e3,
       text: 'Computers work 1.25× faster.',
       effect: { type: 'producerMul', target: C, value: 1.25 },
       reveal: { owned: { [C]: 1 } }, date: '1946-03',
@@ -87,7 +87,7 @@ export const STAGE2 = {
       text: 'Computers work 1.5× faster.',
       effect: { type: 'producerMul', target: C, value: 1.5 },
       reveal: { owned: { [C]: 3 } }, date: '1946-08',
-      log: 'Twenty-eight people spend a summer in a hot Philadelphia classroom. They leave with notes, and every one of them starts building.',
+      log: 'Twenty-eight people spend a summer in a hot Philadelphia classroom. They leave with notes, and many go home to build machines of their own.',
     },
     {
       id: 'faultLog', name: 'A logbook for faults', cost: 820e3,
@@ -111,11 +111,11 @@ export const STAGE2 = {
       log: 'Cambridge keeps a cupboard of tested routines on paper tape: sines, square roots. Nobody writes the same thing twice.',
     },
     {
-      id: 'weather', name: 'Forecast the weather', cost: 3.7e6,
+      id: 'weather', name: 'Weather forecasts', cost: 3.7e6,
       text: 'Computers work 1.5× faster.',
       effect: { type: 'producerMul', target: C, value: 1.5 },
       reveal: { lifetime: 7.4e6 }, date: '1950-04',
-      log: 'The machine forecasts tomorrow\'s weather. It takes a day to do it. For now, it is only just keeping up with the sky.',
+      log: 'ENIAC forecasts tomorrow\'s weather. It takes a day to do it, only just keeping up with the sky. Your machines finish before lunch.',
     },
     {
       id: 'magneticTape', name: 'Magnetic tape', cost: 6.1e6,
@@ -130,13 +130,14 @@ export const STAGE2 = {
       effect: { type: 'producerMul', target: M, value: 1.5 },
       // waits for the 1951–52 story lines, so the ledger stays in date order
       reveal: { owned: { [M]: 2 }, after: 'magneticTape', delay: 70 }, date: '1953-05',
-      log: 'Memory is now woven by hand: thousands of tiny iron rings on copper wire. It remembers even with the power off.',
+      log: 'Memory is now threaded by hand: thousands of tiny iron rings on copper wire. It remembers even with the power off.',
     },
     {
       id: 'washington', name: 'Two letters from Washington', cost: 16e6,
       text: 'Choose one:',
       effect: {
         type: 'choice',
+        // ids match Stage 1's so the sim's --choice flag covers both stages: machines = Defence, people = Space.
         options: [
           { id: 'machines', label: 'Defence money', text: 'Customers pay 1.5× more for your computer time.',
             effect: { type: 'priceMul', value: 1.5 } },
@@ -145,14 +146,14 @@ export const STAGE2 = {
         ],
       },
       reveal: { lifetime: 32e6, after: 'coreMemory', delay: 42 }, date: '1958-02',
-      log: 'Sputnik is still beeping overhead. Two new agencies write to you in the same month. Both offer money. You answer one first.',
+      log: 'Since Sputnik, Washington is spending. Two letters arrive in the same month, one about defence, one about space. Both offer money. You answer one first.',
     },
     {
       id: 'chips', name: 'Chips', cost: 27e6,
       text: 'Computers work 1.5× faster.',
       effect: { type: 'producerMul', target: C, value: 1.5 },
       reveal: { lifetime: 54e6, upgrade: 'washington' }, date: '1959-07',
-      log: 'MEMO. Re: valves. Discontinue. Noyce has printed a whole circuit flat on silicon. Every chip you will ever buy starts on his page.',
+      log: 'MEMO. To: Director, computing division. Re: valves. Discontinue. Noyce has printed a whole circuit flat on silicon. Every chip you will ever buy starts on his page.',
     },
     {
       id: 'timeSharing', name: 'Time-sharing', cost: 3e6, currency: 'dollars',
@@ -173,7 +174,7 @@ export const STAGE2 = {
       text: 'Mainframes work 1.5× faster.',
       effect: { type: 'producerMul', target: M, value: 1.5 },
       reveal: { lifetime: 170e6 }, date: '1965-04',
-      log: 'Gordon Moore draws a line through four points and predicts the next ten years. The industry spends fifty making him right.',
+      log: 'Gordon Moore draws a line through five points and predicts the next ten years. The industry spends fifty making him right.',
     },
     {
       id: 'minicomputers', name: 'Small computers', cost: 100e6,
@@ -187,7 +188,7 @@ export const STAGE2 = {
       text: 'Mainframes work 1.25× faster.',
       effect: { type: 'producerMul', target: M, value: 1.25 },
       reveal: { lifetime: 320e6 }, date: '1966-03',
-      log: 'The Moon computer\'s program is sewn by hand: a wire through a ring is a one, around it is a zero. One wrong stitch is one wrong instruction.',
+      log: 'The Moon computer\'s program is sewn by hand: wire through a ring is a one, around it a zero. One wrong stitch, one wrong instruction.',
     },
   ],
 
@@ -206,9 +207,9 @@ export const STAGE2 = {
       text: 'February 1946. A university gives you two empty rooms, a budget and no machine. You cannot tell them you have done this before.' },
     { id: 'firstJob', when: { clicks: 1 }, date: '1946-02',
       text: 'First job: a firing table for the army. Your old clerks would have needed a month.' },
-    { id: 'sixWomen', when: { clicks: 10 }, date: '1946-02',
-      text: 'In Philadelphia, six women taught ENIAC its first problem by hand. The dinner that night honours the men who built it.' },
-    { id: 'firstComputer', when: { owned: { [C]: 1 } }, date: '1946-03',
+    { id: 'sixWomen', when: { clicks: 30 }, date: '1946-02',
+      text: 'In Philadelphia, six women set up ENIAC\'s public demonstration by hand. The dinner that night honours the men who built it.' },
+    { id: 'firstComputer', when: { owned: { [C]: 1 } }, date: '1946-02',
       text: 'Your first machine: a room of glowing valves. When one dies, you find it by the dark.' },
     { id: 'moonPicture', when: { after: 'programmers', delay: 12 }, date: '1946-04',
       text: 'Someone pins a picture of the Moon above the door. Nobody admits to it.' },
@@ -219,7 +220,7 @@ export const STAGE2 = {
     { id: 'overtaken', when: { legacyTimes: 3 },
       text: 'Your new machines now outrun everything you did in the war. Nobody here knows what that means. You do.' },
     { id: 'turingAsks', when: { after: 'weather', delay: 15 }, date: '1950-10',
-      text: 'The shy mathematician from the train asks in print whether machines can think. Most readers laugh. He was used to that.' },
+      text: 'Turing, the shy mathematician from the train, asks in print whether machines can think. Few people take the question seriously yet.' },
     { id: 'conviction', when: { after: 'magneticTape', delay: 38 }, date: '1952-03',
       text: 'Turing is in the papers. Not for the war; no one may know about the war. He is convicted for loving a man.' },
     { id: 'election', when: { after: 'magneticTape', delay: 55 }, date: '1952-11',
@@ -232,12 +233,12 @@ export const STAGE2 = {
       text: 'FORTRAN arrives. Physicists write formulas and the machine writes its own instructions. Programmers fear for their jobs. Soon there are far more of them.' },
     { id: 'kilby', when: { after: 'washington', delay: 20 }, date: '1958-09',
       text: 'Kilby is too new at Texas Instruments for a summer holiday, so he works alone. In September, a whole circuit works on one chip.' },
-    { id: 'kennedy', when: { after: 'chips', delay: 20 }, date: '1961-05',
+    { id: 'kennedy', when: { after: 'chips', delay: 8 }, date: '1961-05',
       text: 'The President says: the Moon, before the decade is out. Someone takes the picture down from above the door and frames it.' },
     { id: 'glenn', when: { after: 'timeSharing', delay: 15 }, date: '1962-02',
-      text: 'John Glenn will not fly until one woman checks the machine\'s sums with a desk calculator. She does. He flies.' },
+      text: 'John Glenn will not fly until Katherine Johnson checks the machine\'s sums by hand. She does. He flies.' },
     { id: 'cray', when: { after: 'oneFamily', delay: 15 }, date: '1964-09',
-      text: 'MEMO. A small team in Minnesota has built a computer three times faster than anything else. The chairman of IBM wants to know how.' },
+      text: 'MEMO. A small team in Wisconsin delivers a computer three times faster than anything else. The chairman of IBM still wants to know how.' },
   ],
 
   // After the Moon computer: the last actions of the stage. No new machines from here.
@@ -249,15 +250,15 @@ export const STAGE2 = {
     { id: 'apollo11', name: 'Land on the Moon', cost: 400e6,
       text: 'Ends this stage.',
       date: '1969-07',
-      log: '20 July 1969. Three minutes from the surface, the Moon computer flashes an alarm: 1202. It is overloaded.' },
+      log: '20 July 1969. Six minutes from the surface, the Moon computer flashes an alarm: 1202. It is overloaded.' },
   ],
 
   ending: [
     { date: '1969-07', text: 'It drops the small jobs and keeps the ones that matter. Houston says go.' },
-    { date: '1969-07', text: 'Seconds of fuel left. The Eagle has landed. It was fast enough.' },
-    { date: '1969-10', text: 'UCLA calls Stanford by computer. They type L, then O, then the system crashes. The first message is LO.' },
+    { date: '1969-07', text: 'Seconds of fuel left. The Eagle has landed. This time, we were fast enough.' },
+    { date: '1969-10', text: 'UCLA calls the Stanford Research Institute by computer. They type L, then O, then the system crashes. The first message is LO.' },
     { date: '1970-06', text: 'Your first clerk retires. She leaves you her pencil.' },
-    { date: '1971-06', text: 'Your division has a building and its own cafeteria. The machines fill three floors. Every year they need less of one.' },
+    { date: '1971-06', text: 'Your division has a building and its own cafeteria. The machines fill three floors. Every year the same work fits in less space.' },
   ],
   next: {
     date: '1971-11',

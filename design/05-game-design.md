@@ -2,7 +2,7 @@
 
 This is the single source of truth. It merges 01 (historian), 02 (plot), 03 (UX) and 04 (systems).
 If this file conflicts with one of those, this file wins. The proposals stay as background reference.
-Status: **draft for user review.** Nothing is built yet.
+Status: Stages 1 and 2 are built and playable. Stage 2's design is `06-stage2.md`.
 
 ---
 
@@ -22,12 +22,12 @@ that number climb and to make you *feel* it climb.
 |---|---|---|
 | D1 | **Core unit = the operation.** One currency (ops), one score (ops/s). | Historian and systems agreed. Your speed can be compared with real machines (ENIAC 5,000/s, Cray-1 1.6×10⁸, Frontier 10¹⁸). That is the requirement made concrete. |
 | D2 | **The unit's *name* changes with the era; the number never resets.** Stage 1: "checks" (guesses checked). Stage 2, 1948: the log says engineers call them "operations", and the label changes while the number stays. From the supercomputer era: "FLOPs". | Plot's renaming beat ("we were counting this all along"), applied to ops instead of bits. The idea of bits as information survives in the log, not in the counter. |
-| D3 | **Never a second spendable resource.** Money, users and so on are display conversions only. | Systems. Players hated juggling caps. |
-| D4 | **Stage template:** 1 click, 2 producers, 10–13 one-shot upgrades, 1 choice, 1 stage goal visible from second 0. | Systems. Small, repeatable, tunable. |
+| D3 | **Never a second spendable resource.** Money, users and so on are display conversions only. *Superseded in Stage 2: money from selling computer time is spent on mainframes (06 §6).* | Systems. Players hated juggling caps. |
+| D4 | **Stage template:** 1 click, 2 producers, 10–13 one-shot upgrades, 1 choice, 1 stage goal visible from second 0. (Stage 2 has 15 upgrades.) | Systems. Small, repeatable, tunable. |
 | D5 | **Stage end = "collapse", not reset.** Producers fold into one "Legacy" line that keeps the exact rate. Upgrade multipliers are wiped. The next stage's prices are in seconds of that rate. | Systems + plot ("you lose your toys, you keep your momentum"). Satisfies "never slower" and stops multipliers compounding between stages. |
 | D6 | **Handover ritual:** goal reached → closing log lines → old machines fade (rate stays) → only button: **"Pass the ledger on"** → new role, new skin, new goal immediately. | Plot. Same shape every era, about 30 s. |
 | D7 | **The log is "the ledger"**, a logbook passed from keeper to keeper. Its voice changes per era. | Plot + historian. Requirement 8's log becomes the thread through the whole game. |
-| D8 | **Two horizons always visible:** a goal bar (the next nearest unlock, with progress and ETA) plus a stage meter (progress to the stage goal, on a log scale). | UX + systems. Requirement 7. |
+| D8 | **Two horizons always visible:** a goal bar (the stage goal, with progress and ETA) plus each card's own ETA, and a locked card that says what unlocks next. (Revised in §9.) | UX + systems. Requirement 7. |
 | D9 | **Speedometer:** "Decoding one day's messages: ~8 min at your speed" shrinks to about 1 s by the end of the stage. Plus milestone comparisons: "You are now faster than ENIAC." | Systems + UX. The exponential feeling, made visible. |
 | D10 | **One screen, fixed positions, era skins via CSS variables.** No pop-ups, no confirmations. Bought cards vanish and post a log line. | UX. |
 | D11 | **10 stages** (the historian's 12, with lab+mainframe merged and the last two fiction stages merged). | Shorter, and each stage has a clear role. |
@@ -39,8 +39,8 @@ that number climb and to make you *feel* it climb.
 
 | # | Years | Role ("You are…") | Machines (producers) | Stage goal | End rate (ops/s, approx.) |
 |---|---|---|---|---|---|
-| 1 | 1939–45 | Codebreaker | Clerks → code-breaking machines | Build Colossus | 5×10³ |
-| 2 | 1945–71 | Director of a computing lab | Valve computers → transistor mainframes | Put a computer on the Moon (Apollo) | 10⁷ |
+| 1 | 1939–45 | Codebreaker | Clerks → code-breaking machines | Build Colossus | 2–3×10⁴ |
+| 2 | 1946–71 | Director of a computing lab | Computers → mainframes | Build a computer for the Moon | 2–3×10⁷ |
 | 3 | 1971–84 | Garage founder | Hobby kits → home computers | Sell a computer to everyone | 10⁸ |
 | 4 | 1984–95 | Software company CEO | PCs on desks → office networks | Go online (the web) | 10¹¹ |
 | 5 | 1995–2001 | Investor, Silicon Valley | Startups → server farms | Survive the crash | 10¹³ |
@@ -57,6 +57,8 @@ Only Stage 1 is designed in detail. Each later stage gets its own doc before it 
 ---
 
 ## 4. Stage 1 — The Codebreaker (1939–1945)
+
+*Tables and figures in 4.1–4.5 are the original draft (the old Python prototype sim is gone; use `sim/simulate.mjs`). The current text, numbers and order live in `src/data/stage1.js` (see §8–9).*
 
 ### 4.1 Opening (t = 0)
 ```
@@ -97,7 +99,7 @@ The card shows the **name + plain effect + cost**. The **log line** appears when
 | 12 | American machines | 65,000 | Machines work twice as fast. | 60,000 lifetime | "Ohio builds a hundred more machines. They arrive in crates marked 'office equipment'." |
 | G | **Build Colossus** | 250,000 | Ends the stage. | visible from 0:00 | "Flowers was told valves would fail. He built Colossus with sixteen hundred of them. It works." |
 
-Reveal rules: at most 2 locked cards are shown, at least 15 s apart, each with "Needs X. You have Y." (04 §4)
+Reveal rules: at most 2 locked cards are shown, at least 15 s apart, each with "Locked: <condition> (have of need)." (04 §4)
 
 ### 4.4 Story beats (log only; they never change the numbers)
 - ~1:10 First message read: "WEATHER BISCAY RAIN WIND WEST FOUR. It's the weather. It's always the weather."
@@ -117,14 +119,14 @@ Reveal rules: at most 2 locked cards are shown, at least 15 s apart, each with "
 ---
 
 ## 5. Interface (summary of 03, adopted)
-- **Layout:** era header (era · role · stage meter) / goal bar / counter + speed + click button / two columns: Machines | Upgrades / the ledger (log) underneath. Panels appear in a fixed order and never move.
+- **Layout:** era header (date · role · theme) / goal bar / counter + speed + click button / two columns: Machines | Upgrades / the ledger (log) underneath. Panels appear in a fixed order and never move.
 - **Reveal order:** counter + button + goal → speed line (first click) → upgrades panel (10 checks) → log panel → Machines panel (first clerk) → locked previews → machines row → stats/settings → stage meter fills → goal card glows near the end.
-- **Cards:** name, bold plain effect, cost, and a "Needs X. You have Y." line when locked. Affordable = solid border. Bought = vanish (150 ms) + log line.
-- **Numbers:** 3 significant digits, number words up to decillion, then ×10ⁿ. Tabular digits. Plain comparisons ("enough to store a novel"). From Stage 2 on: "× faster than 1939".
-- **Feel:** one visual cue + at most one sound per action, under 300 ms. Click floaters merge. Holding the button auto-repeats at 10/s. Honours `prefers-reduced-motion`.
+- **Cards:** name, bold plain effect, cost, and a "Locked: <condition> (have of need)." line when locked. Affordable = solid border. Bought = vanish (150 ms) + log line.
+- **Numbers:** 3 significant digits, number words up to decillion, then ×10ⁿ. Tabular digits. Plain comparisons ("as fast as N people with pencils", "as fast as N ENIACs").
+- **Feel:** one visual cue + at most one sound per action, under 300 ms. Click floaters merge. Holding the button (or a key) repeats at 6/s. Honours `prefers-reduced-motion`.
 - **Readability:** rem units, bold not bigger, pure black text in light mode, light/dark mode following the system with a manual toggle. Log lines wrap.
 - **Era skins:** one CSS-variable set per stage (1939 paper/typewriter → 60s punch card → 70s/80s phosphor terminal → 90s bevelled web → clean AI lab → post-human: everything fades except the counter).
-- **Mobile:** sticky header + goal bar on top, click button sticky at the bottom.
+- **Mobile:** sticky goal bar on top, click button sticky at the bottom.
 - **Saving:** autosave every 10 s and when the tab is hidden. Returning players get one log line ("While you were away: +2.1 million checks").
 
 ---
@@ -175,7 +177,7 @@ Player feedback: the pace was good and it was fun. Fixed:
   - **Finale:** two final actions bought with checks: *Read Berlin's orders* (D-Day) and *Win the war* (VE Day).
     Hiring stops after Colossus ("the team is complete"), so every check goes to the finale.
   - Then the closing lines, then "Pass the ledger on".
-- Colossus milestone is 650,000 checks in total. Win the war costs 1.2 million.
+- Colossus milestone is 650,000 checks in total. Win the war costs 1 million (was 1.2 million; see 06 §9).
 Results: normal play 10–13 min · holding the button 8 min · greedy 15 min · idle 13–15 min.
 Something to buy every 30–45 s up to the end.
 - **Goal bar kinds (second playtest):** the switching bar was still confusing, so each kind now has a fixed
