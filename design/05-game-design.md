@@ -140,3 +140,20 @@ Reveal rules: at most 2 locked cards are shown, at least 15 s apart, each with "
 - Fact-check every historical line that ships (the historian worked from memory and marked unsure items).
 - Re-run the Stage 1 sim with the reordered upgrades.
 - Tech default: plain HTML/CSS/JS, no build step, opened in the browser.
+
+---
+
+## 8. Changes made after simulation (2026-11-07)
+The first build was checked with `sim/simulate.mjs`, which plays the real engine. Results led to these changes:
+- **The stage goal is now a total-production milestone (800,000 checks in total), not a purchase.**
+  A greedy player who spends everything on clerks and machines never saved 250,000 and took 22+ minutes.
+  Now spending never delays the goal, and Colossus is built automatically when the total is reached.
+- **"More people" option: +15% of speed per click** (was +25%), and **holding the button repeats at 6/s** (was 10/s).
+  Holding the button with +25% finished in under 5 minutes.
+- **Upgrade order and names** were adjusted so dates run forward (Wrens 1941, Scoring sheets/Banburismus 1941,
+  Herivel became a log line). The ledger only moves forward in time.
+- **Reveal queue:** at most 2 open upgrade cards, 8 s apart, plus one locked preview card with its condition.
+- **Stage meter** = (total / goal)^0.3, which moves roughly evenly in time.
+
+Current results (all pass): normal play 9–12 min · holding the button 7–8 min · greedy 15 min · mostly idle 12–14 min.
+Longest stretch with nothing new on screen: 32–50 s.

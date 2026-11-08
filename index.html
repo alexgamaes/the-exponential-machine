@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Exponential Machine</title>
+  <script>
+    // Apply the saved theme before CSS paints (no flash).
+    try { const t = localStorage.getItem('tem_theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%239b1c1c'/%3E%3Ctext x='8' y='12.5' font-size='12' text-anchor='middle' fill='white' font-family='monospace'%3Ee%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans:wght@500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="era-1939">
+  <header id="era">
+    <div class="era-left">
+      <span id="era-date"></span>
+      <span class="sep">·</span>
+      <span>You are: <b id="era-role"></b></span>
+    </div>
+    <div class="era-right">
+      <div id="stage-meter" class="meter" title="Progress to the end of this stage">
+        <span id="stage-meter-label"></span>
+        <div class="bar"><div id="stage-meter-fill"></div></div>
+      </div>
+      <button id="theme-toggle" class="icon-btn" data-action="theme" aria-label="Switch theme">◐</button>
+    </div>
+  </header>
+
+  <section id="goal" aria-live="polite">
+    <div class="goal-row">
+      <span class="goal-label">Next:</span>
+      <span id="goal-text"></span>
+      <span id="goal-nums"></span>
+    </div>
+    <div class="bar"><div id="goal-fill"></div></div>
+  </section>
+
+  <main>
+    <section id="core">
+      <div id="counter"><span id="ops"></span> <span id="unit"></span></div>
+      <div id="rate" hidden></div>
+      <div id="compare" hidden></div>
+      <div id="speedo" hidden></div>
+      <div id="click-wrap">
+        <button id="main-btn" class="main-btn"></button>
+        <button id="pass-btn" class="main-btn" data-action="pass" hidden>Pass the ledger on</button>
+        <div id="floaters" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <div id="columns">
+      <section id="producers" class="panel" hidden>
+        <h2>Your team</h2>
+        <div id="producer-list"></div>
+      </section>
+      <section id="upgrades" class="panel" hidden>
+        <h2>Ideas</h2>
+        <div id="upgrade-list"></div>
+      </section>
+    </div>
+
+    <section id="next-stage" class="panel" hidden>
+      <h2>To be continued</h2>
+      <p>Stage 2, the computing lab (1946–1971), is not built yet.</p>
+      <p>Your speed carries over: <b id="legacy-rate"></b>.</p>
+      <button class="buy-btn" data-action="reset">Start again from 1939</button>
+    </section>
+
+    <section id="ledger" class="panel">
+      <h2>The ledger</h2>
+      <ol id="log"></ol>
+    </section>
+  </main>
+
+  <footer>
+    <button class="link-btn" data-action="reset">Reset game</button>
+  </footer>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -118,7 +118,7 @@ function conditionMet(s, c) {
 export function conditionProgress(s, c) {
   const st = stageData(s);
   if (c.lifetime !== undefined && s.lifetime < c.lifetime)
-    return { label: `${st.unit} in total`, have: s.lifetime, need: c.lifetime };
+    return { label: `${st.unit} in total`, have: s.lifetime, need: c.lifetime, kind: 'lifetime' };
   if (c.clicks !== undefined && s.clicks < c.clicks)
     return { label: 'guesses checked by hand', have: s.clicks, need: c.clicks };
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) {
@@ -257,9 +257,12 @@ function checkBeats(s) {
   }
 }
 
+export function note(s, text, kind = 'note') { addLog(s, text, null, kind); }
+
 function addLog(s, text, date, kind) {
+  // The ledger only moves forward: an entry is stamped with the current date (never earlier).
   if (date && date > s.date) s.date = date;
-  s.log.unshift({ t: s.time, date: date || s.date, text, kind });
+  s.log.unshift({ t: s.time, date: s.date, text, kind });
   if (s.log.length > CONFIG.logMax) s.log.length = CONFIG.logMax;
 }
 
@@ -283,28 +286,28 @@ export function currentGoal(s) {
   const unaffordable = open.filter(u => s.ops < u.cost).sort((a, b) => a.cost - b.cost);
   if (open.length && !unaffordable.length) {
     const u = open[0];
-    return { text: `Buy "${u.name}"`, have: s.ops, need: u.cost };
+    return { text: `Buy "${u.name}"`, have: s.ops, need: u.cost, eta: true };
   }
   if (unaffordable.length) {
     const u = unaffordable[0];
-    return { text: `Save up for "${u.name}"`, have: s.ops, need: u.cost };
+    return { text: `Save up for "${u.name}"`, have: s.ops, need: u.cost, eta: true };
   }
   const nl = nextLocked(s);
   if (nl && nl.progress) {
     return { text: `Reach ${fmtInt(nl.progress.need)} ${nl.progress.label} to unlock something new`,
-             have: nl.progress.have, need: nl.progress.need };
+             have: nl.progress.have, need: nl.progress.need, eta: nl.progress.kind === 'lifetime' };
   }
   if (nl) return { text: 'Something new is coming…', have: 0, need: 1 };
-  return { text: `${st.goal.name}`, have: s.lifetime, need: st.goal.lifetime };
+  return { text: `${st.goal.name}`, have: s.lifetime, need: st.goal.lifetime, eta: true };
 }
 
 function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
 
-// Stage progress, 0..1, on a log scale so it moves steadily.
+// Stage progress, 0..1. (total / goal)^0.3 moves roughly evenly in time for an exponential curve.
 export function stageProgress(s) {
   const g = stageData(s).goal.lifetime;
   if (s.phase !== 'playing') return 1;
-  return Math.min(1, Math.log10(1 + s.lifetime) / Math.log10(1 + g));
+  return Math.min(1, Math.pow(s.lifetime / g, 0.3));
 }
 
 // ---------- save / load ----------

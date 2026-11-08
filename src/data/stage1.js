@@ -64,7 +64,7 @@ export const STAGE1 = {
       text: 'Unlocks machines. Each checks 8 guesses per second.',
       effect: { type: 'unlockProducer', target: 'machine' },
       reveal: { lifetime: 600 }, date: '1940-03',
-      log: 'March 1940. The first machine arrives: wardrobe-sized, clattering, smelling of hot oil. They name it Victory.',
+      log: 'The first machine arrives: wardrobe-sized, clattering, smelling of hot oil. They name it Victory.',
     },
     {
       id: 'wiringBoard', name: 'Extra wiring board', cost: 2200,
@@ -149,7 +149,7 @@ export const STAGE1 = {
       text: 'Ten clerks now. The hut is running out of chairs.' },
     { id: 'pencil', when: { owned: { machine: 1 } }, date: '1940-04',
       text: 'Your first clerk is moved to the machine room. She says she misses the pencil.' },
-    { id: 'herivel', when: { lifetime: 2500 }, date: '1940-05',
+    { id: 'herivel', when: { after: 'machineBlueprint', delay: 30 }, date: '1940-05',
       text: 'Herivel, twenty, pictures a sleepy enemy operator at dawn. A guess about laziness becomes a weapon.' },
     { id: 'convoys', when: { after: 'wrens', delay: 12 }, date: '1941-06',
       text: 'The navy\'s messages can be read. Convoys steer around the waiting U-boats. Ships stop sinking.' },
