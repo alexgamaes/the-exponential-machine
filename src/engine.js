@@ -312,7 +312,7 @@ export function nextLocked(s) {
 }
 
 // One short-horizon goal for the goal bar. Never null while playing.
-// One short-horizon goal for the goal bar. Never null while active.
+// The goal bar: the stage goal (then the finale steps). Never null while active.
 // Returns { text, have, need, kind, unitLabel, ready, eta }.
 //   kind 'balance' = checks you have (spendable) · 'lifetime' = checks in total · 'owned'/'clicks' = counts.
 export function currentGoal(s) {
@@ -324,21 +324,12 @@ export function currentGoal(s) {
     return { text: `Save up for "${f.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: f.cost, eta: true };
   }
   if (s.phase !== 'playing') return null;
+  // The goal bar tracks only the stage goal, in one unit (checks in total). It does not tell the
+  // player which upgrade to buy: the cards show their own progress, the locked card shows what unlocks next.
   if (canBuyGoal(s)) return { text: st.goal.name, kind: 'ready', ready: true, have: 1, need: 1 };
-  const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought));
-  const affordable = open.find(u => s.ops >= u.cost);
-  if (affordable) return { text: `Buy "${affordable.name}"`, kind: 'ready', ready: true, have: 1, need: 1 };
-  const saving = open.sort((a, b) => a.cost - b.cost)[0];
-  if (saving) return { text: `Save up for "${saving.name}"`, kind: 'balance', unitLabel: st.unit, have: s.ops, need: saving.cost, eta: true };
-  const nl = nextLocked(s);
-  if (nl && nl.progress) {
-    const p = nl.progress;
-    return { text: `${p.phrase} to unlock "${nl.upgrade.name}"`, kind: p.kind, target: p.target, unitLabel: p.unitLabel,
-             have: p.have, need: p.need, eta: p.kind === 'lifetime' };
-  }
-  if (nl) return { text: `"${nl.upgrade.name}" is coming`, kind: 'ready', ready: true, have: 1, need: 1 };
-  return { text: `Check ${fmtInt(st.goal.lifetime)} guesses in total to ${st.goal.name.toLowerCase()}`,
-           kind: 'lifetime', unitLabel: 'in total', have: s.lifetime, need: st.goal.lifetime, eta: true };
+  return { text: `Check ${fmtInt(st.goal.lifetime)} guesses in total to ${st.goal.name.charAt(0).toLowerCase() + st.goal.name.slice(1)}`,
+           kind: 'lifetime', unitLabel: 'in total', have: s.lifetime, need: st.goal.lifetime, eta: true,
+           frac: stageProgress(s) };
 }
 
 function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }

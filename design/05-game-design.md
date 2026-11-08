@@ -183,3 +183,8 @@ Something to buy every 30–45 s up to the end.
   one block per item for counts). When the kind changes, the bar drains, swaps and refills, with a coloured outline (under 0.7 s).
   The same colours mark "You have" (red) and "Checked in total" (blue) under the counter, and a TEAM goal outlines the
   matching Hire/Build button. Details in `03b-ux-revision.md` §d.
+- **Goal bar = stage goal only (third playtest).** "Buy X" / "Save up for X" felt like being told what to do,
+  and the bar still switched units too often. Now the bar shows only the stage goal in one unit
+  ("Check 650,000 guesses in total to build Colossus", IN TOTAL, curved fill), then the finale steps.
+  Choosing what to save for is the player's job: each unaffordable card shows its own "~20 s" estimate,
+  and the locked card shows what unlocks the next idea. The header stage meter was removed (duplicate).

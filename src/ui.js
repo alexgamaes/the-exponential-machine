@@ -44,11 +44,7 @@ export function render(s) {
   // header
   set($('era-date'), fmtDate(s.date));
   set($('era-role'), st.role);
-  const meterTarget = s.phase === 'finale' ? 'Win the war' : st.goal.name.replace('Build ', '');
-  set($('stage-meter-label'), `Goal: ${meterTarget}`);
-  fill($('stage-meter-fill'), E.stageProgress(s));
-  const meterTitle = `${fmt(Math.min(s.lifetime, st.goal.lifetime))} of ${fmt(st.goal.lifetime)} ${st.unit} in total`;
-  if ($('stage-meter').title !== meterTitle) $('stage-meter').title = meterTitle;
+
 
   // goal bar
   renderGoal(E.currentGoal(s), eff);
@@ -122,6 +118,7 @@ export function render(s) {
     toggle(el.root, 'affordable', can);
     toggle(el.root, 'unaffordable', !can);
     fill(el.progress, s.ops / u.cost);
+    set(el.cost, `${fmt(u.cost)} ${st.unit}` + (can ? '' : cardEta(u.id, u.cost - s.ops, eff)));
     for (const b of el.optionBtns) if (b.disabled === can) b.disabled = !can;
   }
   // locked preview card (the next thing to aim for)
@@ -151,6 +148,18 @@ export function render(s) {
   if (s.phase === 'next') set($('legacy-rate'), `${fmt(s.legacyRate, 1)} ${st.unit} per second`);
 
   renderLog(s);
+}
+
+// "~20 s" on cards you are saving for. Updated at most once a second per card, so it does not flicker.
+const etaCache = new Map(); // id -> { at, text }
+function cardEta(id, missing, eff) {
+  const now = performance.now();
+  const c = etaCache.get(id);
+  if (c && now - c.at < 1000) return c.text;
+  const sec = missing / Math.max(eff, 1e-9);
+  const text = eff > 0 && missing > 0 && sec < 3600 ? ` · ~${fmtApprox(sec)}` : '';
+  etaCache.set(id, { at: now, text });
+  return text;
 }
 
 // ---------- goal bar ----------
@@ -192,7 +201,8 @@ function renderGoal(goal, eff) {
   show(box, !!goal);
   if (!goal || goalSwitching) return;
   const fillEl = $('goal-fill');
-  const frac = goal.ready ? 1 : goal.have / goal.need;
+  // The stage goal grows exponentially, so its fill is curved (see stageProgress) to move at an even pace.
+  const frac = goal.ready ? 1 : (goal.frac ?? goal.have / goal.need);
 
   if (goal.kind !== goalKind) {
     const first = goalKind === null;
@@ -281,7 +291,7 @@ function makeCard(u, st) {
   } else {
     root = h('button', { class: 'card', 'data-action': 'buy-upgrade', 'data-id': u.id }, head, effect, progress);
   }
-  return { root, progress, optionBtns };
+  return { root, progress, optionBtns, cost };
 }
 
 function renderLog(s) {
