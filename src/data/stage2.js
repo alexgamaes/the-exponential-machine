@@ -67,8 +67,8 @@ export const STAGE2 = {
     },
     {
       id: 'faultLog', name: 'A logbook for faults', cost: 820e3,
-      text: 'Each click also adds 3% of your speed.',
-      effect: { type: 'clickPct', value: 0.03 },
+      text: 'Computers work 1.25× faster.',
+      effect: { type: 'producerMul', target: C, value: 1.25 },
       reveal: { lifetime: 1.6e6 }, date: '1947-09',
       log: '15:45. A moth is found in relay seventy. Someone tapes it into the logbook: first actual case of bug being found.',
     },
@@ -116,8 +116,8 @@ export const STAGE2 = {
         options: [
           { id: 'machines', label: 'Defence money', text: 'Mainframes get cheaper: each one costs 12% more than the last, not 20%.',
             effect: { type: 'costGrowth', target: M, value: 1.12 } },
-          { id: 'people', label: 'Space money', text: 'Each click adds another 10% of your speed.',
-            effect: { type: 'clickPct', value: 0.10 } },
+          { id: 'people', label: 'Space money', text: 'Computers get cheaper: each one costs 10% more than the last, not 17%.',
+            effect: { type: 'costGrowth', target: C, value: 1.10 } },
         ],
       },
       reveal: { lifetime: 32e6, after: 'coreMemory', delay: 42 }, date: '1958-02',
@@ -168,7 +168,7 @@ export const STAGE2 = {
   ],
 
   goal: {
-    id: 'moonComputer', name: 'Build a computer for the Moon', lifetime: 700e6,
+    id: 'moonComputer', name: 'Build a computer for the Moon', lifetime: 900e6,
     text: 'A computer small enough to fly. Everything works 3× faster.',
     effect: { type: 'globalMul', value: 3 },
     date: '1966-08',

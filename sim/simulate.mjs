@@ -118,7 +118,8 @@ function playStage(s, profileName, choice, verbose) {
     if (T() >= nextSnap) {
       nextSnap += 60;
       const eff = E.effectiveRate(s);
-      snaps.push({ min: Math.round(T() / 60), rate, click: E.getClickValue(s), owned: Object.values(s.producers).join('/'),
+      const cps = clicksAt(prof.clicks, T());
+      snaps.push({ min: Math.round(T() / 60), rate, click: E.getClickValue(s), clickShare: cps * E.getClickValue(s) / rate, cps, owned: Object.values(s.producers).join('/'),
         total: E.stageTotal(s), legacyShare: legacy / rate, task: st.task.size / Math.max(eff, 1e-9) });
     }
   }
@@ -147,8 +148,8 @@ function playStage(s, profileName, choice, verbose) {
   if (verbose) {
     console.log(`\n=== Stage ${s.stage} · ${profileName} / ${choice} · legacy ${fmt(legacy)} ===`);
     for (const [t, k, x] of events) if (k !== 'buy-producer') console.log(`${fmtT(t)}  ${k.padEnd(12)} ${x}`);
-    console.log('\nmin   speed/s     click   owned   stage total   legacy share   task');
-    for (const p of snaps) console.log(`${String(p.min).padStart(3)} ${fmt(p.rate).padStart(9)} ${fmt(p.click).padStart(9)} ${p.owned.padStart(7)} ${fmt(p.total).padStart(13)}   ${(p.legacyShare * 100).toFixed(0).padStart(11)}%   ${fmtDur(p.task)}`);
+    console.log('\nmin   speed/s     click  clicks/s  clicks add   owned   stage total   legacy share   task');
+    for (const p of snaps) console.log(`${String(p.min).padStart(3)} ${fmt(p.rate).padStart(9)} ${fmt(p.click).padStart(9)} ${p.cps.toFixed(1).padStart(8)} ${((p.clickShare * 100).toFixed(1) + '%').padStart(11)} ${p.owned.padStart(7)} ${fmt(p.total).padStart(13)}   ${(p.legacyShare * 100).toFixed(0).padStart(11)}%   ${fmtDur(p.task)}`);
   }
 
   return { stage: s.stage, profile: profileName, choice, finished, mins, maxGap, clump, legacy,

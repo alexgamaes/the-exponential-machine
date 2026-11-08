@@ -61,7 +61,7 @@ export const STAGE1 = {
     },
     {
       id: 'weatherReports', name: 'Weather reports', cost: 180,
-      text: 'Each click also adds 5% of your speed.',
+      text: 'Each click also earns 5% of what your team makes in a second.',
       effect: { type: 'clickPct', value: 0.05 },
       reveal: { lifetime: 120 }, date: '1940-01',
       log: 'Every morning a German weather station sends the weather. Every morning it gives us a few words for free. We call them cribs.',
@@ -109,7 +109,7 @@ export const STAGE1 = {
         options: [
           { id: 'machines', label: 'More machines', text: 'Machines get cheaper: each one costs 7% more than the last, not 12%.',
             effect: { type: 'costGrowth', target: 'machine', value: 1.07 } },
-          { id: 'people', label: 'More people', text: 'Each click adds another 15% of your speed.',
+          { id: 'people', label: 'More people', text: 'Each click earns another 15% of what your team makes in a second.',
             effect: { type: 'clickPct', value: 0.15 } },
         ],
       },
