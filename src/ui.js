@@ -91,8 +91,9 @@ export function render(s) {
     // slower than one of them: say what share ("20% of a Cray-1")
     const like = ratio < 0.95 && st.compare.part ? st.compare.part.replace('{n}', Math.max(1, Math.round(ratio * 100)))
       : n === 1 ? st.compare.one : st.compare.many.replace('{n}', fmt(n));
-    const team = `${st.text.team}: as fast as ${like} · ` +
-      `${st.task.label.toLowerCase()} ${st.task.size / rate < 1 ? 'in under a second' : 'in about ' + fmtApprox(st.task.size / rate)}`;
+    // Two plain sentences: how fast, then what that speed does ("Decoding one day's messages: about 3 min.").
+    const team = `${st.compare.lead} ${like}. ` +
+      `${st.task.label}: ${st.task.size / rate < 1 ? 'under a second' : 'about ' + fmtApprox(st.task.size / rate)}.`;
     set($('team'), team);
     if (team !== lastTeamText) {
       if (lastTeamText) { $('team').classList.add('flash'); setTimeout(() => $('team').classList.remove('flash'), 400); }
@@ -117,6 +118,14 @@ export function render(s) {
     const prev = E.STAGES[s.stage - 1];
     set($('legacy-label'), prev ? prev.legacy : 'Earlier stages');
     set($('legacy-text'), `${fmt(s.legacyRate, 1)} ${unit} per second, forever.`);
+  }
+  // Stage 3: every computer sold keeps running in someone's home, and counts.
+  const showHomes = !!st.homes && s.homes >= 1 && s.phase !== 'next';
+  show($('homes-row'), showHomes);
+  if (showHomes) {
+    const each = E.homeOutput(s), n = Math.floor(s.homes);
+    set($('homes-owned'), fmt(n));
+    set($('homes-text'), `Each runs ${fmt(each, 1)} ${unit} a second in someone's home. Together: ${fmt(each * n, 1)} per second.`);
   }
   for (const p of st.producers) {
     const unlocked = E.producerUnlocked(s, p.id);
@@ -459,8 +468,8 @@ function renderPriceMarket(s) {
   const f = E.priceFlow(s);
   set($('sell-forecast'), `At ${money(s.price)}: about ${fmt(sig2(f.sold), 1)} sold a second, ${money(sig2(f.dollarsPerSec))} a second.`);
   const wom = E.wordOfMouthShare(s) * f.sold;
-  set($('sell-homes'), `Computers in homes: ${fmt(Math.floor(s.homes))}` + (f.sold > 0 ? `  ·  +${fmt(sig2(f.sold), 1)} a second` : '') +
-    (wom >= 1 ? ` (${fmt(sig2(wom), 1)} from word of mouth)` : ''));
+  // The count itself lives in "Your garage" (Computers sold); here only where new buyers come from.
+  set($('sell-homes'), wom >= 1 ? `Of those, ${fmt(sig2(wom), 1)} a second come from word of mouth.` : '\u00a0');
   let status;
   if (f.capacity <= 0) status = 'Set up a workbench to start making computers.';
   else if (f.demand > f.capacity * 1.05) status = 'Buyers are waiting: make more computers, or raise the price.';

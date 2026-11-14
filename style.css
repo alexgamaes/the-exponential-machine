@@ -414,3 +414,5 @@ body.era-1971 .card, body.era-1971 .buy-btn:not(.main-btn) { border-radius: 4px;
 /* dev tools (localhost only), below "Reset game" */
 #dev-tools { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.9rem; }
 #dev-tools .link-btn { padding: 0.5rem 0.6rem; }
+/* Stage 3: computers sold sit between the legacy line and the workbenches, as their own row. */
+#homes-row { border-top: none; padding-top: 0; padding-bottom: 0.25rem; border-bottom: 1px dashed var(--soft-border); margin-bottom: 0.75rem; }

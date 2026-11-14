@@ -20,8 +20,8 @@ export const STAGE3 = {
   clickLegacyFrac: 0.05,
   startDollars: 1300,                 // Stage 2's money stays with the division
   // Speedometer: looking nine moves ahead in chess, about 35^9 positions (Belle, 1980).
-  task: { label: 'Looking nine moves ahead in chess', size: 7.9e13 },
-  compare: { rate: 1.6e8, one: 'one Cray-1', many: '{n} Cray-1s', part: '{n}% of a Cray-1' },
+  task: { label: 'Checking every chess game nine moves ahead', size: 7.9e13 },
+  compare: { lead: 'All your computers together are as fast as', rate: 1.6e8, one: 'one Cray-1 supercomputer', many: '{n} Cray-1 supercomputers', part: '{n}% of a Cray-1 supercomputer' },
   legacy: 'The garage, 1971–84',
   homes: { output: 5e4 },             // operations per second from one computer in a home
   text: {

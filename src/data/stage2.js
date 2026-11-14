@@ -21,7 +21,7 @@ export const STAGE2 = {
   clickLegacyFrac: 0.05,
   // Speedometer: ENIAC's 1950 forecast took about 24 hours at ~5,000 operations per second.
   task: { label: "Forecasting tomorrow's weather", size: 24 * 3600 * 5000 },
-  compare: { rate: 5000, one: 'one ENIAC', many: '{n} ENIACs' },
+  compare: { lead: 'Your lab is as fast as', rate: 5000, one: 'one ENIAC', many: '{n} ENIACs' },
   legacy: 'The computing lab, 1946–71',
   text: {
     team: 'Your lab',

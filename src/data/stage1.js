@@ -13,7 +13,7 @@ export const STAGE1 = {
   // Speedometer: a fixed task whose duration shrinks as you get faster.
   task: { label: "Decoding one day's messages", size: 10000 },
   // Team line: "as fast as N people with pencils".
-  compare: { rate: 0.5, one: 'one person with a pencil', many: '{n} people with pencils' },
+  compare: { lead: 'Your team works as fast as', rate: 0.5, one: 'one person with a pencil', many: '{n} people with pencils' },
   // The Legacy row in later stages.
   legacy: 'Bletchley Park, 1939–45',
   // Each machine makes every clerk faster (the "Shared card index" upgrade).

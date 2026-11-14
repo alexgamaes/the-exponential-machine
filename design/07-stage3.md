@@ -109,3 +109,9 @@ Two cards cost money (the floppy disk, the price war), the rest operations. Line
 - The Cray-1 line waits for 1976. The speedometer says "N% of a Cray-1" until you are faster than one, and long times read in days.
 - Engine: `homes`, `capacity`, `demandAt`, `priceFlow`, `setPrice`/`setMarket`, `moneyRate`, conditions `homes` and `afterGoal`,
   effect `demandMul`, `startDollars`. Save version 4. The market panel is built from stage data (Stage 2 and 3 share it).
+- **Player feedback (Nov 13):** the count of computers sold and what they produce were hard to find (a line inside the Sell
+  panel). Now a **"Computers sold"** row in "Your garage", between the Legacy line and the workbenches: the count, "Each runs
+  N operations a second in someone's home. Together: N per second." The Sell panel keeps only the word-of-mouth share.
+- **The speed line, all stages,** is now two plain sentences: "All your computers together are as fast as 220 Cray-1
+  supercomputers. Checking every chess game nine moves ahead: about 37 min." (was "Your garage: as fast as 220 Cray-1s ·
+  looking nine moves ahead in chess in about 37 min"). Each stage's `compare.lead` gives the first words.
