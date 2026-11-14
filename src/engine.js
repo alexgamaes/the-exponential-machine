@@ -8,7 +8,7 @@ import { STAGE2 } from './data/stage2.js';
 import { STAGE3 } from './data/stage3.js';
 
 export const STAGES = { 1: STAGE1, 2: STAGE2, 3: STAGE3 };
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
@@ -43,7 +43,9 @@ export function createState() {
     dollars: 0,       // money from selling computer time (Stage 2 on)
     sell: 0.25,       // share of computer time offered to customers (Stage 2)
     homes: 0,         // computers sold that keep running in people's homes (Stage 3)
-    models: [],       // Stage 3: every model launched, [{ speed (× Model 1), homes (sold) }]; the last is on sale
+    models: [],       // Stage 3: every model launched, [{ speed (× Model 1), homes (sold), series, kind }]; the last is on sale
+    series: [],       // Stage 3: computer series, [{ homes, programs, bonus }]; programs run on every computer of their series
+    design: null,     // Stage 3: the new series being designed { start, gain, base }
     modelAt: 0,       // when the model on sale was launched
     sales: [],        // buyers a second for the model on sale, one sample every 2 s (the chart)
     salesNext: 0,     // when the next sample is due
@@ -60,7 +62,7 @@ export function createState() {
 
 function upgradeEffects(s) {
   const st = stageData(s);
-  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, demandMul: 1, fadeMul: 1, labMax: 0, mul: {}, growth: {}, unlocked: {} };
+  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, demandMul: 1, fadeMul: 1, nextAdd: 0, leapAdd: 0, devMul: 1, progMul: 1, carry: 0, mul: {}, growth: {}, unlocked: {} };
   const apply = (e) => {
     switch (e.type) {
       case 'clickMul': fx.clickMul *= e.value; break;
@@ -72,7 +74,13 @@ function upgradeEffects(s) {
       case 'priceMul': fx.priceMul *= e.value; break;
       case 'demandMul': fx.demandMul *= e.value; break;
       case 'fadeMul': fx.fadeMul *= e.value; break;
-      case 'labMax': fx.labMax += e.value; break;
+      case 'nextAdd': fx.nextAdd += e.value; break;     // next models leap further
+      case 'leapAdd': fx.leapAdd += e.value; break;     // new series leap further (chips)
+      case 'devMul': fx.devMul *= e.value; break;       // outsiders write programs faster
+      case 'progMul': fx.progMul *= e.value; break;     // all programs written faster
+      case 'carry': fx.carry = Math.max(fx.carry, e.value); break;  // share of programs a new series keeps
+      case 'unlock': fx.unlocked[e.target] = true; break;
+      case 'multi': for (const x of e.effects) apply(x); break;
       case 'unlockProducer': fx.unlocked[e.target] = true; break;
     }
   };
@@ -114,10 +122,10 @@ export function getRate(s, fx = upgradeEffects(s)) {
   if (stageData(s).homes) r += homeWork(s) * homeOutput(s, fx);
   return r;
 }
-// Computers in homes, each weighted by its model's speed (Model 1 = 1).
+// Computers in homes, each weighted by its model's speed and its series' programs (Model 1, no programs = 1).
 export function homeWork(s) {
   let w = 0;
-  for (const m of s.models) w += m.homes * m.speed;
+  for (const m of s.models) w += m.homes * m.speed * seriesMul(s, m.series ?? 0);
   return w;
 }
 // Operations per second from one Model 1 in a home (a model N computer runs its model's speed × this).
@@ -255,82 +263,184 @@ export function setSell(s, share) {
   return true;
 }
 
-// ---------- launching models (Stage 3) ----------
-// Workbenches and factories make computers; buyers take the model on sale. Every computer sold keeps
-// running in someone's home at its model's speed. The lab keeps designing the next model: it gets better
-// fast, then slows down near the limit of the current chip. You choose when to launch it. Launching
-// starts a new model with fresh buyers; the old one stops selling. Owners tell friends (word of mouth).
+// ---------- launching models and series (Stage 3) ----------
+// Workbenches and factories make computers; buyers take the model on sale. Every computer sold keeps running
+// in someone's home at its model's speed. A SERIES is a line of computers that run the same programs.
+// Programs are written for the series on sale (more, the more of it are in homes), and every program makes
+// every computer of that series run better, including the ones sold long ago.
+// The lab designs two things: the NEXT MODEL in the series (a small leap; keeps every program) and, once a new
+// chip arrives, a NEW SERIES (a big leap, but none of the old programs run on it; Closed keeps most of them).
+// Every launch retools the factories for a while. Buyers come in a wave after each launch, then fade.
+const modelMarket = (s) => { const m = stageData(s).market; return m && m.kind === 'models' ? m : null; };
 export function capacity(s, fx = upgradeEffects(s)) {
   let c = 0;
-  for (const p of stageData(s).producers) if (p.makes) c += s.producers[p.id] * producerOutput(s, p.id, fx);
-  return c;
+  for (const p of stageData(s).producers) if (p.makes === 'computers') c += s.producers[p.id] * producerOutput(s, p.id, fx);
+  return c * retoolFactor(s);
 }
-const modelMarket = (s) => { const m = stageData(s).market; return m && m.kind === 'models' ? m : null; };
 export function modelOnSale(s) { return s.models.length; }
 export function modelAge(s) { return s.time - s.modelAt; }
-// The most the lab can make the next model, as a multiple of the model on sale.
-export function labLimit(s, fx = upgradeEffects(s)) { const m = modelMarket(s); return m ? m.labMax + fx.labMax : 1; }
-// How much faster the lab's next model is than the one on sale: an S-curve up to the limit.
-// A bigger leap takes longer to design (time × √(limit − 1)).
-export function labRatio(s, fx = upgradeEffects(s), age = modelAge(s)) {
+export function seriesOnSale(s) { return s.series.length; }
+const curSeries = (s) => s.series[s.series.length - 1];
+// After a launch the factories retool: they restart at `floor` and are back to full after the retool time.
+export function retoolTime(s, kind) { const m = modelMarket(s); return m?.retool?.[kind] || 0; }
+export function retoolFactor(s, age = modelAge(s)) {
+  const m = modelMarket(s), last = s.models[s.models.length - 1];
+  if (!m?.retool || !last?.kind) return 1;
+  const T = retoolTime(s, last.kind);
+  return T > 0 ? Math.min(1, m.retool.floor + (1 - m.retool.floor) * age / T) : 1;
+}
+export function retoolLeft(s) {
+  const last = s.models[s.models.length - 1];
+  return last?.kind ? Math.max(0, retoolTime(s, last.kind) - modelAge(s)) : 0;
+}
+// What a series' programs add: its computers run this many times faster.
+export function seriesMulOf(m, programs, bonus = 0) { return 1 + Math.max(0, programs) / m.programsPerX + bonus; }
+export function seriesMul(s, i) {
+  const m = modelMarket(s), x = s.series[i];
+  return m && x ? seriesMulOf(m, x.programs, x.bonus) : 1;
+}
+export function programsOpen(s, fx = upgradeEffects(s)) { return !!fx.unlocked.programs; }
+export function newSeriesOpen(s, fx = upgradeEffects(s)) { return !!fx.unlocked.newSeries; }
+// Lab progress 0..1 on an S-curve: slow start, fast middle, then it flattens.
+export function labProgress(s, age) {
   const m = modelMarket(s);
-  if (!m) return 1;
-  const L = labLimit(s, fx);
-  const p = Math.max(0, age) / (m.labTime * Math.sqrt(L - 1));
-  const k = Math.pow(p, m.labShape);
-  return 1 + (L - 1) * k / (1 + k);
+  const k = Math.pow(Math.max(0, age) / m.labTime, m.labShape);
+  return k / (1 + k);
 }
-// Where the lab is on its curve: 'start' · 'fast' · 'slowing' (the best time to launch has passed) · 'limit'.
-export function labPhase(s, fx = upgradeEffects(s)) {
-  const m = modelMarket(s), a = modelAge(s), L = labLimit(s, fx), r = labRatio(s, fx, a);
-  if (r >= 1 + 0.8 * (L - 1)) return 'limit';
-  if (r < m.minRatio) return 'start';
-  // The average gain per second, ln(ratio)/age, peaks at the best moment to launch.
-  return Math.log(labRatio(s, fx, a + 1)) / (a + 1) < Math.log(r) / a ? 'slowing' : 'fast';
+export function nextGain(s, fx = upgradeEffects(s)) { return modelMarket(s).nextLeap + fx.nextAdd; }
+export function seriesGain(s, fx = upgradeEffects(s)) { return modelMarket(s).seriesLeap + fx.leapAdd; }
+export function designAge(s) { return s.design ? s.time - s.design.start : 0; }
+export function designProgress(s) { return s.design ? labProgress(s, designAge(s)) : 0; }
+// How much faster the lab's design is than the model on sale. A new series is designed against the model that was
+// on sale when its design began, so next models launched meanwhile eat into its lead.
+export function labRatio(s, kind = 'next', fx = upgradeEffects(s)) {
+  if (!modelMarket(s)) return 1;
+  const cur = s.models[s.models.length - 1].speed;
+  if (kind === 'series') return s.design ? s.design.base * (1 + s.design.gain * designProgress(s)) / cur : 1;
+  return 1 + nextGain(s, fx) * labProgress(s, modelAge(s));
 }
-// Buyers for the model on sale: many at launch, then fewer as everyone who wanted one has one.
+// Where a design is on its curve: 'start' · 'fast' · 'slowing' (the best time to launch has passed) · 'limit'.
+export function labPhase(s, kind = 'next', fx = upgradeEffects(s)) {
+  const m = modelMarket(s);
+  const a = kind === 'series' ? designAge(s) : modelAge(s);
+  const g = kind === 'series' ? (s.design?.gain || 0) : nextGain(s, fx);
+  const p = labProgress(s, a);
+  if (p >= 0.8) return 'limit';
+  if (p < m.minProgress) return 'start';
+  const r0 = 1 + g * p, r1 = 1 + g * labProgress(s, a + 1);
+  return Math.log(r1) / (a + 1) < Math.log(r0) / a ? 'slowing' : 'fast';
+}
+// The new-series design runs by itself once a new chip is in: it starts at once, moves to a better chip if one
+// arrives while the design is young, and starts over if it finished but next models have overtaken it.
+// The newest chip card bought (its name, for the screen and the ledger).
+export function chipName(s) {
+  const m = modelMarket(s);
+  let name = '';
+  for (const c of m?.chips || []) if (c.id in s.bought) name = c.name;
+  return name;
+}
+function updateDesign(s, fx) {
+  const m = modelMarket(s);
+  if (!newSeriesOpen(s, fx)) return;
+  const fresh = () => {
+    s.design = { start: s.time, gain: seriesGain(s, fx), base: s.models[s.models.length - 1].speed, chip: chipName(s) };
+  };
+  if (!s.design) return fresh();
+  const p = designProgress(s), better = seriesGain(s, fx) > s.design.gain + 1e-9;
+  if (better && p < m.restartBefore) {
+    fresh();
+    return addLog(s, `The lab starts the new series again on ${s.design.chip}: a bigger leap, a longer wait.`, null, 'note');
+  }
+  if (better && s.design.lateFor !== chipName(s)) {
+    s.design.lateFor = chipName(s);
+    addLog(s, `${cap(chipName(s))} arrives too late for the design in the lab. The next new series will use it.`, null, 'note');
+  }
+  if (p >= m.autoAt && labRatio(s, 'series', fx) < 1 + m.minProgress * s.design.gain) {
+    fresh();
+    addLog(s, 'Your next models have caught up with the new series design. The lab starts a new one.', null, 'note');
+  }
+}
+const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+// Buyers for the model on sale: a wave at launch, then fewer as everyone who wanted one has one.
 export function freshness(s, fx = upgradeEffects(s), age = modelAge(s)) {
   const m = modelMarket(s);
   return m.fadeFloor + (m.surge - m.fadeFloor) * Math.pow(0.5, age / (m.fadeHalf * fx.fadeMul));
 }
-// Buyers a second: the markets that have opened plus word of mouth, times how fresh the model is.
+// Buyers a second: markets plus word of mouth, times the launch wave, times the programs it runs (people buy
+// the computer that runs the program they want).
 export function modelDemand(s, fx = upgradeEffects(s), age = modelAge(s)) {
   const m = modelMarket(s);
   if (!m) return 0;
   let d = m.wordOfMouth * s.homes;
   for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand;
-  return d * fx.demandMul * freshness(s, fx, age);
+  return d * fx.demandMul * freshness(s, fx, age) * Math.pow(seriesMul(s, s.series.length - 1), m.appeal);
 }
 export function modelFlow(s, fx = upgradeEffects(s)) {
   const cap = capacity(s, fx), demand = modelDemand(s, fx);
   const sold = sellOpen(s) ? Math.min(cap, demand) : 0;
   return { capacity: cap, demand, sold, dollarsPerSec: sold * (modelMarket(s)?.price || 0) * fx.priceMul };
 }
-// Why the launch button is off, or null when you can launch.
-export function launchBlock(s, fx = upgradeEffects(s)) {
+// Programs written a second for the series on sale: outsiders follow its installed base; your programmers add theirs.
+export function programRate(s, fx = upgradeEffects(s)) {
+  const m = modelMarket(s);
+  if (!m || !programsOpen(s, fx)) return 0;
+  let own = 0;
+  for (const p of stageData(s).producers) if (p.makes === 'programs') own += s.producers[p.id] * producerOutput(s, p.id, fx);
+  return (m.outsiders * Math.sqrt(curSeries(s).homes) * fx.devMul + own) * fx.progMul;
+}
+// Programs a new series would start with (Closed keeps most of yours), and its killer programs.
+export function carried(s, fx = upgradeEffects(s)) { return fx.carry * curSeries(s).programs; }
+const carriedBonus = (s, fx) => fx.carry > 0 ? curSeries(s).bonus : 0;
+// What one computer sold is worth, as a multiple of a Model 1 with no programs: now, or after a launch.
+export function saleValue(s, kind = null, fx = upgradeEffects(s)) {
+  const m = modelMarket(s), cur = s.models[s.models.length - 1].speed;
+  if (!kind) return cur * seriesMul(s, s.series.length - 1);
+  if (kind === 'next') return cur * labRatio(s, 'next', fx) * seriesMul(s, s.series.length - 1);
+  return cur * labRatio(s, 'series', fx) * seriesMulOf(m, carried(s, fx), carriedBonus(s, fx));
+}
+// Why a launch button is off, or null when you can launch.
+export function launchBlock(s, kind = 'next', fx = upgradeEffects(s)) {
   const m = modelMarket(s);
   if (!m || s.phase !== 'playing' || !sellOpen(s)) return 'closed';
-  if (capacity(s, fx) <= 0) return 'workbench';
-  if (labRatio(s, fx) < m.minRatio) return 'lab';
-  return null;
+  if (kind === 'series' && !newSeriesOpen(s, fx)) return 'chip';
+  if (!(s.producers.workbench > 0)) return 'workbench';
+  if (kind === 'series') {
+    if (!s.design || designProgress(s) < m.minProgress) return 'lab';
+    if (labRatio(s, 'series', fx) <= 1) return 'behind';
+    return null;
+  }
+  return labProgress(s, modelAge(s)) < m.minProgress ? 'lab' : null;
 }
-export function canLaunch(s) { return launchBlock(s) === null; }
-export function launchModel(s, byEngineers = false) {
-  if (!canLaunch(s)) return false;
-  const m = modelMarket(s), r = labRatio(s);
+export function canLaunch(s, kind = 'next') { return launchBlock(s, kind) === null; }
+export function launchModel(s, kind = 'next', byEngineers = false) {
+  if (!canLaunch(s, kind)) return false;
+  const fx = upgradeEffects(s), m = modelMarket(s), r = labRatio(s, kind, fx);
   const prev = s.models[s.models.length - 1];
-  s.models.push({ speed: prev.speed * r, homes: 0 });
+  if (kind === 'series') {
+    const old = curSeries(s), oldN = s.series.length, keep = carried(s, fx);
+    s.series.push({ homes: 0, programs: keep, bonus: carriedBonus(s, fx) });
+    s.design = null;
+    s.models.push({ speed: prev.speed * r, homes: 0, series: s.series.length - 1, kind });
+    const n = s.models.length;
+    const k = s.series.length, H = fmt(Math.floor(old.homes)), P = fmt(Math.floor(old.programs));
+    const head = `You launch Model ${n}, the first of Series ${k}: ${fmtRatio(r)} as fast as Model ${n - 1}`;
+    if (keep >= 1) addLog(s, `${head}, and it keeps ${fmt(Math.floor(keep))} of your programs. Series ${oldN} keeps its ${H} computers and ${P} programs.`, null, 'milestone');
+    else if (k === 2) addLog(s, `${head}, but none of the old programs run on it. The shops ask why. Series 1 stops getting new programs; its ${H} owners keep using theirs.`, null, 'milestone');
+    else addLog(s, `${head}. None of the old programs run on it. Series ${oldN} keeps its ${H} computers and ${P} programs.`, null, 'milestone');
+    updateDesign(s, fx);
+  } else {
+    s.models.push({ speed: prev.speed * r, homes: 0, series: s.series.length - 1, kind });
+    const n = s.models.length;
+    const line = m.modelLines?.[n] || 'It is faster, and the shops want it.';
+    const first = byEngineers && !s.engineersShipped;
+    const who = byEngineers ? (first ? 'Your engineers stop waiting for you and ship' : 'Your engineers ship') : 'You launch';
+    if (byEngineers) s.engineersShipped = true;
+    addLog(s, `${who} Model ${n}, ${fmtRatio(r)} as fast as Model ${n - 1}.${first ? ' It had been ready for a while.' : ''} ${line}`, null, 'model');
+  }
   s.modelAt = s.time; s.sales = []; s.salesNext = s.time;
-  const n = s.models.length;
-  const line = m.modelLines?.[n] || 'It is faster, and the shops want it.';
-  const who = byEngineers
-    ? (s.engineersShipped ? 'Your engineers ship' : 'Your engineers stop waiting for you and ship')
-    : 'You launch';
-  if (byEngineers) s.engineersShipped = true;
-  addLog(s, `${who} Model ${n}, ${fmtRatio(r)} as fast as Model ${n - 1}. ${line}`, null, 'model');
   return true;
 }
-function fmtRatio(r) { return `${(Math.round(r * 10) / 10).toFixed(1)}×`; }
+export function fmtRatio(r) { return r < 10 ? `${(Math.round(r * 10) / 10).toFixed(1)}×` : `${Math.round(r)}×`; }
 export function setMarket(s, v) { return setSell(s, v); }
 export function marketValue(s) { return s.sell; }
 // Dollars per second right now, whatever the market.
@@ -369,6 +479,7 @@ export function buyUpgrade(s, id, optionId) {
     s.choices[id] = optionId;
   }
   pay(s, u, u.cost);
+  if (u.effect.type === 'killerApp' && s.series.length) curSeries(s).bonus += u.effect.value;
   s.bought[id] = s.time;
   addLog(s, u.log, u.date, 'upgrade');
   checkBeats(s);
@@ -416,7 +527,7 @@ export function passLedger(s) {
   const rate = getRate(s);          // computed with the OLD stage's data
   const st = stageData(s);
   for (const p of st.producers) s.producers[p.id] = 0;
-  s.homes = 0; s.models = [];       // computers in homes fold into the legacy too
+  s.homes = 0; s.models = []; s.series = []; s.design = null;   // computers in homes fold into the legacy too
   s.legacyRate = rate;              // (enterStage clears bought/choices/revealed; with no next stage they stay, so the role stays)
   if (STAGES[s.stage + 1]) enterStage(s, s.stage + 1, st.next);
   else {                            // the next stage is not built yet
@@ -454,7 +565,9 @@ export function enterStage(s, n, bridge = null) {
   // Money does not cross stages (it belonged to the old job); a stage may start with some savings.
   s.dollars = st.startDollars ?? 0;
   s.homes = 0;
-  s.models = st.market?.kind === 'models' ? [{ speed: 1, homes: 0 }] : [];   // Model 1 is on sale from the start
+  const models = st.market?.kind === 'models';                  // Model 1, Series 1, is on sale from the start
+  s.models = models ? [{ speed: 1, homes: 0, series: 0 }] : [];
+  s.series = models ? [{ homes: 0, programs: 0, bonus: 0 }] : []; s.design = null;
   s.modelAt = s.time; s.sales = []; s.salesNext = s.time; s.engineersShipped = false;
   s.stageStart = { time: s.time, lifetime: s.lifetime, clicks: s.clicks };
   s.phase = 'playing';
@@ -477,16 +590,18 @@ export function tick(s, dt) {
   if (sold > 0) s.dollars += Math.min(sold, sellDemand(s) * dt) * moneyPerOp(s, fx);
   if (marketKind(s) === 'models' && sellOpen(s)) {   // Stage 3: computers leave for homes, money comes in
     const f = modelFlow(s, fx);
-    s.homes += f.sold * dt; s.models[s.models.length - 1].homes += f.sold * dt;
+    s.homes += f.sold * dt; s.models[s.models.length - 1].homes += f.sold * dt; curSeries(s).homes += f.sold * dt;
+    curSeries(s).programs += programRate(s, fx) * dt;
     s.dollars += f.dollarsPerSec * dt;
+    updateDesign(s, fx);
     if (s.time >= s.salesNext) {    // one chart bar every 2 s, the last two minutes kept
-      s.sales.push(Math.round(f.demand * 100) / 100);
+      s.sales.push([Math.round(f.demand * 100) / 100, Math.round(f.capacity * 100) / 100]);   // buyers, could make
       if (s.sales.length > 60) s.sales.shift();
       s.salesNext = s.time + 2;
     }
     // The engineers ship a model that is close to the chip's limit themselves.
     const m = stageData(s).market;
-    if (capacity(s, fx) > 0 && labRatio(s, fx) >= 1 + m.autoAt * (labLimit(s, fx) - 1)) launchModel(s, true);
+    if (s.producers.workbench > 0 && labProgress(s, modelAge(s)) >= m.autoAt) launchModel(s, 'next', true);
   }
 
   // smoothed click rate (time constant ~3 s)
@@ -616,7 +731,13 @@ export function deserialize(json) {
   // v4 -> v5: the price tag became models. Computers already in homes become Model 1s.
   delete s.price;
   if (STAGES[s.stage].market?.kind === 'models' && !s.models.length) {
-    s.models = [{ speed: 1, homes: s.homes }]; s.modelAt = s.time; s.sales = []; s.salesNext = s.time;
+    s.models = [{ speed: 1, homes: s.homes, series: 0 }]; s.modelAt = s.time; s.sales = []; s.salesNext = s.time;
+  }
+  // v5 -> v6: series. Every model so far belongs to Series 1, with no programs yet. The chart starts again.
+  if (data.version < 6) s.sales = [];
+  if (STAGES[s.stage].market?.kind === 'models' && !s.series.length) {
+    s.series = [{ homes: s.models.reduce((a, m) => a + m.homes, 0), programs: 0, bonus: 0 }];
+    for (const m of s.models) { m.series = 0; delete m.kind; }
   }
   // A save that finished the last built stage moves on once the next stage exists.
   if (s.phase === 'next' && STAGES[s.stage + 1]) enterStage(s, s.stage + 1);

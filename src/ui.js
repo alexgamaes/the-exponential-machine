@@ -38,7 +38,7 @@ function resetStage(s, st) {
   shownStage = s.stage;
   prodEls.clear(); cardEls.clear(); etaCache.clear();
   lockedEl = null; bigEl = null; goalKind = null;
-  lastTeamText = ''; lastGoalText = ''; chartKey = ''; homesKey = '';
+  lastTeamText = ''; lastGoalText = ''; chartKey = ''; textClock = {}; verdict = { shown: null, cand: null, since: 0 };
   $('producer-list').replaceChildren();
   $('upgrade-list').replaceChildren();
   // Era palette: one body class per stage; CSS cross-fades the colours.
@@ -148,7 +148,7 @@ export function render(s) {
     const cost = E.producerCost(s, p.id);
     set(el.owned, `${n} owned`);
     const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace(/^Each checks 1 guesses/, 'Each checks 1 guess').replace(/^Each builds 1 computers/, 'Each builds 1 computer');
-    set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} per second.` : ''));
+    set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} ${p.makes === 'programs' ? 'a second' : 'per second'}.` : '') + (p.note ? ' ' + p.note : ''));
     set(el.cost, price(p, Math.ceil(cost), unit)); toggle(el.cost, 'dollars', p.currency === 'dollars');
     const can = s.phase === 'playing' && E.wallet(s, p) >= cost;
     if (el.btn.disabled === can) el.btn.disabled = !can;
@@ -427,6 +427,7 @@ function buildMarket(st) {
   show($('market-seg'), !models);
   show($('models'), models);
   show($('sell-status'), !models);
+  show($('sell-customers'), !models);
   show($('market-intro'), !!m.intro);
   if (models) return;
   const seg = $('market-seg');
@@ -466,94 +467,193 @@ function renderMarket(s, unit) {
   set($('sell-customers'), 'Customers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.');
 }
 
-// ---------- Stage 3: launching models ----------
-const ratioText = (r) => `${(Math.round(r * 10) / 10).toFixed(1)}×`;
-// Computers in homes: how far your launches have come (changes only at a launch), and what all homes make.
-let homesKey = '';
+// ---------- Stage 3: launching models and series ----------
+const ratioText = (r) => E.fmtRatio(r);
+const progText = (n) => n < 1000 ? fmt(Math.floor(n)) : fmt(sig2(n * 10) / 10, 1);   // 845 · 4,210 (3 digits)
+const rateText = (x) => x < 10 ? String(Math.round(x * 10) / 10) : fmt(sig2(x), 1);   // 0.3 · 2.5 · 14
+const boostText = (x) => '×' + (x < 10 ? x.toFixed(1) : String(Math.round(x)));
+let textClock = {};   // per block: [second, models] it last wrote at
+// Computers in homes: newest model against the first, a small table of series, and the total.
 function renderHomes(s, total, unit) {
-  const n = s.models.length, r = n ? s.models[n - 1].speed / s.models[0].speed : 1;
-  const x = r < 10 ? (Math.round(r * 10) / 10).toFixed(1) : String(Math.round(r));
-  const tot = fmt(sig2(total), 1);
-  const key = `${n}|${x}|${tot}|${unit}`;
-  if (key === homesKey) return;
-  homesKey = key;
+  const st = E.stageData(s), n = s.models.length;
+  const r = n ? s.models[n - 1].speed / s.models[0].speed : 1;
+  if (!textReady(s, 'homes')) return;
   $('homes-gen').replaceChildren(...(n <= 1 ? ['Every one is a Model 1, the speed you started with.']
-    : ['Model ', h('b', {}, String(n)), ' runs ', h('b', {}, `${x}×`), ' as fast as Model 1.']));
-  $('homes-total').replaceChildren('Together: ', h('b', {}, tot), ` ${unit} per second.`);
+    : ['Model ', h('b', {}, String(n)), ' runs ', h('b', {}, ratioText(r)), ' as fast as Model 1.']));
+  $('homes-total').replaceChildren('Together: ', h('b', {}, fmt(sig2(total), 1)), ` ${unit} per second.`);
+  const progs = E.programsOpen(s);
+  show($('series-grid'), progs); show($('homes-programs'), progs);
+  if (!progs) return;
+  // Up to 3 rows (reserved from the new chip on): with 4 or more series the oldest are summed in the first row.
+  const k = s.series.length, slots = E.newSeriesOpen(s) ? 3 : 1;
+  const range = (i0, i1) => {
+    let lo = Infinity, hi = 0;
+    s.models.forEach((m, j) => { if ((m.series ?? 0) >= i0 && (m.series ?? 0) <= i1) { lo = Math.min(lo, j + 1); hi = Math.max(hi, j + 1); } });
+    return lo === hi ? ` (Model ${lo})` : ` (Models ${lo}–${hi})`;
+  };
+  const row = (i0, i1) => {
+    let homes = 0, programs = 0, plain = 0, boosted = 0;
+    for (let i = i0; i <= i1; i++) { homes += s.series[i].homes; programs += s.series[i].programs; }
+    for (const m of s.models) { const i = m.series ?? 0; if (i >= i0 && i <= i1) { plain += m.homes * m.speed; boosted += m.homes * m.speed * E.seriesMul(s, i); } }
+    const boost = i0 === i1 ? E.seriesMul(s, i0) : (plain > 0 ? boosted / plain : 1);
+    const name = i0 === i1 ? `Series ${i0 + 1}` : `Series ${i0 + 1}–${i1 + 1}`;
+    const cls = i1 === k - 1 ? 'on-sale' : '';
+    return [h('span', { class: cls }, name, h('span', { class: 'range' }, range(i0, i1))),
+      h('span', { class: cls }, fmt(Math.floor(homes))), h('span', { class: cls }, progText(programs)), h('span', { class: cls }, boostText(boost))];
+  };
+  const rows = [];
+  if (k > slots) { rows.push(row(0, k - slots)); for (let i = k - slots + 1; i < k; i++) rows.push(row(i, i)); }
+  else for (let i = 0; i < k; i++) rows.push(row(i, i));
+  while (rows.length < slots) rows.push([' ', '', '', ''].map(x => h('span', { class: 'empty' }, x)));
+  $('series-grid').replaceChildren(...['', 'Homes', 'Programs', 'Boost'].map(x => h('span', { class: 'grid-head' }, x)), ...rows.flat());
+  const rate = E.programRate(s);
+  const own = st.producers.filter(p => p.makes === 'programs').reduce((a, p) => a + s.producers[p.id] * E.producerOutput(s, p.id), 0);
+  $('homes-programs').replaceChildren(`Series ${k} gets `, h('b', {}, `+${rateText(rate)}`), ' programs a second' +
+    (own > 0 ? ` (${rateText(own)} from your programmers).` : '.'));
 }
-// Round a chart's top up to 1, 2 or 5 × 10^k, so the scale moves rarely.
+// Panel text changes at most once a second (and at once after a launch); bars move smoothly.
+function textReady(s, block) {
+  const now = [Math.floor(s.time), s.models.length], was = textClock[block];
+  if (was && was[0] === now[0] && was[1] === now[1]) return false;
+  textClock[block] = now;
+  return true;
+}
 function niceCeil(v) {
   if (!(v > 0)) return 1;
   const k = Math.pow(10, Math.floor(Math.log10(v)));
   for (const m of [1, 2, 5, 10]) if (v <= m * k) return m * k;
   return 10 * k;
 }
-const SLOTS = 60, SHOWN = 45;    // 60 bar slots of 2 s; the last 15 are kept for the expected fade
+const SLOTS = 60, SHOWN = 45;    // 60 slots of 2 s; the last 15 are kept for the expected fade
 let chartKey = '';
+// Bars: filled = sold, outlined = buyers turned away. Dashed step line: what you could make. Dotted: buyers if you wait.
 function renderChart(s, f) {
-  const bars = s.sales.slice(-SHOWN);
+  const bars = s.sales.slice(-SHOWN).map(x => Array.isArray(x) ? x : [x, f.capacity]);
   const n = bars.length, age = E.modelAge(s), now = E.modelDemand(s);
-  // Expected buyers from here on (same markets, only the fade): dotted.
   const proj = [];
   const f0 = E.freshness(s);
   for (let j = 1; n + j - 1 < SLOTS; j++) proj.push(now * E.freshness(s, undefined, age + 2 * j) / f0);
-  const top = niceCeil(Math.max(1, ...bars, ...proj, f.capacity) * 1.05);
-  const key = bars.join(',') + '|' + top + '|' + Math.round(f.capacity) + '|' + s.models.length;
-  if (key === chartKey) return;  // redraw only when a bar is added or the scale moves
+  const top = niceCeil(Math.max(1, ...bars.map(b => Math.max(b[0], b[1])), ...proj, f.capacity) * 1.05);
+  const key = bars.length + '|' + (bars[n - 1] || []).join(',') + '|' + top + '|' + s.models.length;
+  if (key === chartKey) return;
   chartKey = key;
-  const y = (v) => (40 - 40 * Math.min(1, v / top)).toFixed(2);
+  const y = (v) => (40 - 40 * Math.min(1, v / top));
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
-  const svg = $('chart-svg');
-  const kids = bars.map((v, i) => el('rect', { x: i * 2 + 0.3, y: y(v), width: 1.4, height: (40 - y(v)).toFixed(2), class: 'bar' }));
+  const kids = [];
+  bars.forEach(([buy, make], i) => {
+    const sold = Math.min(buy, make);
+    kids.push(el('rect', { x: i * 2 + 0.3, y: y(sold).toFixed(2), width: 1.4, height: (40 - y(sold)).toFixed(2), class: 'bar' }));
+    if (buy > make) kids.push(el('rect', { x: i * 2 + 0.3, y: y(buy).toFixed(2), width: 1.4, height: (y(make) - y(buy)).toFixed(2), class: 'bar-away', 'vector-effect': 'non-scaling-stroke' }));
+  });
   if (proj.length) {
     const pts = [[n * 2 - 1, y(now)], ...proj.map((v, j) => [(n + j) * 2 + 1, y(v)])];
-    kids.push(el('polyline', { points: pts.map(p => p.join(',')).join(' '), class: 'proj', 'vector-effect': 'non-scaling-stroke' }));
+    kids.push(el('polyline', { points: pts.map(p => p.map(v => (+v).toFixed(2)).join(',')).join(' '), class: 'proj', 'vector-effect': 'non-scaling-stroke' }));
   }
-  if (f.capacity > 0)
-    kids.push(el('line', { x1: 0, x2: 120, y1: y(f.capacity), y2: y(f.capacity), class: 'cap', 'vector-effect': 'non-scaling-stroke' }));
-  svg.replaceChildren(...kids);
-  set($('chart-max'), fmt(top));
+  if (n) {
+    const pts = [];
+    bars.forEach(([, make], i) => { pts.push([i * 2, y(make)], [i * 2 + 2, y(make)]); });
+    pts.push([120, y(f.capacity)]);
+    kids.push(el('polyline', { points: pts.map(p => p.map(v => (+v).toFixed(2)).join(',')).join(' '), class: 'cap', 'vector-effect': 'non-scaling-stroke' }));
+  }
+  $('chart-svg').replaceChildren(...kids);
+  set($('chart-max'), `${fmt(top)} a second`);
   const capY = 100 * Math.min(1, f.capacity / top);
   const label = $('chart-capline');
   show(label, f.capacity > 0);
   set(label, `you can make ${fmt(sig2(f.capacity), 1)}`);
-  // the label sits just above the dashed line, or just under it when the line is near the top
   label.style.bottom = capY > 75 ? `calc(${capY.toFixed(1)}% - 1.3em)` : `${capY.toFixed(1)}%`;
 }
 
+// The supply verdict: a new state shows only after it has held for 2 s (switching over shows at once).
+let verdict = { shown: null, cand: null, since: 0 };
+function supplyState(s, f) {
+  if (!(s.producers.workbench > 0)) return 'none';
+  if (E.retoolLeft(s) > 0) return 'switch';
+  if (f.demand > f.capacity * 1.05) return 'short-computers';
+  if (f.capacity > f.demand * 1.05) return 'short-buyers';
+  return 'even';
+}
+const gap = (x, one, many) => { const v = rateText(Math.max(0, x)); return `${v} ${v === '1' ? one : many}`; };
+function secondsTo(s, progress, age) {
+  const m = E.stageData(s).market;
+  const need = m.labTime * Math.pow(progress / (1 - progress), 1 / m.labShape);
+  return Math.max(1, Math.ceil(need - age));
+}
+
 function renderModels(s) {
-  const st = E.stageData(s), f = E.modelFlow(s);
-  const n = E.modelOnSale(s), block = E.launchBlock(s);
-  const prev = s.models[n - 2], cur = s.models[n - 1];
-  set($('model-now'), f.capacity <= 0 && n === 1 ? 'Now selling: nothing yet. Set up a workbench to build your first computer.'
-    : n === 1 ? 'Now selling: Model 1, a kit you solder yourself.'
-    : `Now selling: Model ${n} · ${ratioText(cur.speed / prev.speed)} as fast as Model ${n - 1}`);
+  const st = E.stageData(s), m = st.market, f = E.modelFlow(s);
+  const n = E.modelOnSale(s), k = E.seriesOnSale(s), launched = n !== (textClock.models?.[1] ?? n);
+  const progs = E.programsOpen(s), chipIn = E.newSeriesOpen(s);
+  // bars move every frame; after a launch they go back to the start without sliding
+  for (const id of ['next-fill', 'series-fill']) toggle($(id), 'no-anim', launched);
+  fill($('next-fill'), E.labProgress(s, E.modelAge(s)));
+  fill($('series-fill'), chipIn ? E.designProgress(s) : 0);
   renderChart(s, f);
-  let status;
-  if (f.capacity <= 0) status = 'Nobody can build one yet.';
-  else if (f.demand > f.capacity * 1.05) status = 'Buyers are waiting: make more computers.';
-  else if (f.capacity > f.demand * 1.05) status = 'You make more than people buy.';
-  else status = 'Making and selling are even.';
-  set($('sales-line'), (f.sold > 0 ? `Selling ${fmt(sig2(f.sold), 1)} a second, ${money(sig2(f.dollarsPerSec))} a second. ` : '') + status);
-  // The lab
-  const r = E.labRatio(s), L = E.labLimit(s);
-  set($('lab-line'), `In the lab: Model ${n + 1} · ${ratioText(r)} as fast`);
-  set($('lab-limit'), `This chip allows up to ${ratioText(L)}`);
-  fill($('lab-fill'), (r - 1) / (L - 1));
-  const phase = E.labPhase(s);
-  set($('lab-status'), {
-    start: 'Just started.',
-    fast: 'Getting better fast.',
-    slowing: 'Slowing down.',
-    limit: 'Nearly as good as this chip allows: your engineers will ship it soon.',
-  }[phase]);
-  set($('launch-btn'), `Launch Model ${n + 1}`);
-  const off = block !== null;
-  if ($('launch-btn').disabled !== off) $('launch-btn').disabled = off;
-  set($('lab-note'), block === 'workbench' ? 'Set up a workbench first: someone has to build it.'
-    : block === 'lab' ? `You can launch it once it is ${ratioText(st.market.minRatio)} as fast.`
-    : `Model ${n} stops selling when Model ${n + 1} launches. Computers already in homes keep counting.`);
-  const names = E.customers(s).map(c => c.name).join(', ');
-  set($('sell-customers'), names ? 'Buyers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.' : '');
+  const buttons = [['next-btn', 'next'], ['series-btn', 'series']];
+  for (const [id, kind] of buttons) { const off = !E.canLaunch(s, kind); if ($(id).disabled !== off) $(id).disabled = off; }
+  if (!textReady(s, 'models')) return;
+
+  set($('model-tag'), progs ? `Model ${n} · Series ${k}` : `Model ${n}`);
+  // Supply line
+  const full = f.capacity / Math.max(E.retoolFactor(s), 1e-9);
+  const B = rateText(f.demand), M = rateText(f.capacity);
+  set($('supply-nums'), `Buyers ${B} a second · you can make ${M}` + (E.retoolLeft(s) > 0 ? ` (soon ${fmt(sig2(full), 1)})` : ''));
+  const state = supplyState(s, f);
+  // Only the steady states wait 2 s before they replace each other; "switching over" and "nobody can build" are facts.
+  const steady = (x) => x === 'short-computers' || x === 'short-buyers' || x === 'even';
+  if (state !== verdict.cand) { verdict.cand = state; verdict.since = s.time; }
+  if (!steady(state) || !steady(verdict.shown) || s.time - verdict.since >= 2) verdict.shown = state;
+  const shown = verdict.shown, factories = E.producerUnlocked(s, 'factory');
+  const programmers = st.producers.some(p => p.makes === 'programs' && E.producerUnlocked(s, p.id));
+  const [bold, fix] = {
+    none: ['Nobody can build one yet.', 'Set up a workbench.'],
+    switch: [`Switching over to Model ${n}: ${Math.ceil(E.retoolLeft(s))} s left.`, 'It is the cost of a launch.'],
+    'short-computers': [`Short of computers: ${gap(f.demand - f.capacity, 'buyer', 'buyers')} a second ${f.demand - f.capacity < 1.5 ? 'goes' : 'go'} home.`,
+      E.modelAge(s) < 60 && n > 1 ? 'The launch rush will fade.' : factories ? 'Open a factory.' : 'Set up a workbench.'],
+    'short-buyers': [`Short of buyers: ${gap(f.capacity - f.demand, 'computer', 'computers')} a second not made.`,
+      E.launchBlock(s, 'next') === 'lab' ? `Launch Model ${n + 1} when it is ready.` : programmers ? 'Launch, or hire programmers.' : `Launch Model ${n + 1} to bring buyers.`],
+    even: ['Making and selling are even.', ''],
+  }[shown];
+  set($('verdict-bold'), bold); set($('verdict-fix'), fix);
+
+  // Next model
+  const phases = { start: 'Just started', fast: 'Improving fast', slowing: 'Slowing down' };
+  set($('next-head'), `Next model: ${ratioText(E.labRatio(s, 'next'))} as fast`);
+  set($('next-phase'), E.labPhase(s, 'next') === 'limit' ? 'Nearly done' : phases[E.labPhase(s, 'next')]);
+  set($('next-btn'), `Launch Model ${n + 1}`);
+  const nb = E.launchBlock(s, 'next'), P = s.series[k - 1].programs;
+  const line1 = nb === 'workbench' ? 'Set up a workbench first: someone has to build it.'
+    : nb === 'lab' ? `Ready to launch in ${secondsTo(s, m.minProgress, E.modelAge(s))} s.`
+    : E.labPhase(s, 'next') === 'limit' ? 'Your engineers will ship it themselves soon.'
+    : !progs ? 'Computers already in homes keep counting.'
+    : `Runs all ${progText(P)} programs of Series ${k}.`;
+  set($('next-note'), `${line1}\nBuilding slows for ${m.retool.next} s.`);
+
+  // New series
+  show($('lab-series'), progs);
+  if (progs) {
+    toggle($('lab-series'), 'locked', !chipIn);
+    if (!chipIn) {
+      set($('series-head'), 'New series'); set($('series-phase'), 'Needs a new chip');
+      set($('series-btn'), 'Launch a new series');
+      $('series-note').replaceChildren('A new series needs a new chip: The $25 chip. It is a bigger leap, but none of your programs run on it.');
+    } else {
+      const sb = E.launchBlock(s, 'series'), ph = E.labPhase(s, 'series');
+      set($('series-head'), `New series: ${ratioText(E.labRatio(s, 'series'))} as fast`);
+      set($('series-phase'), sb === 'behind' ? 'Overtaken' : ph === 'limit' ? 'As good as it gets' : phases[ph] || '');
+      set($('series-btn'), `Launch Series ${k + 1}`);
+      const C = E.carried(s);
+      const progLine = C >= 1 ? `Keeps ${progText(C)} of your ${progText(P)} programs.` : `Runs none of your ${progText(P)} programs.`;
+      const chipLine = `On ${s.design?.chip || E.chipName(s)}. Building slows for ${m.retool.series} s.`;
+      let first;
+      if (sb === 'behind') first = 'Your next models have caught up with it. The lab starts a new design.';
+      else if (sb === 'lab') first = `Ready to launch in ${secondsTo(s, m.minProgress, E.designAge(s))} s.`;
+      else {
+        const w = E.saleValue(s, 'series') / E.saleValue(s, 'next');
+        first = h('b', {}, `Worth ${w < 0.1 ? 'under 0.1' : (Math.round(w * 10) / 10).toFixed(1)}× a next model.`);
+      }
+      $('series-note').replaceChildren(first, ` ${progLine}\n${chipLine}`);
+    }
+  }
 }

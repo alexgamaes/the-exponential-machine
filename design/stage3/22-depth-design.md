@@ -1,4 +1,4 @@
-# Stage 3, second pass: families and programs (senior game designer, Nov 14)
+# Stage 3, second pass: families and programs (senior game designer, Nov 14) — built as "series" (07-stage3 §10)
 
 Answers `20-depth-brief.md`. Uses the critic's numbers in `21-strategy-critique.md` and the player's second note ("most of
 the time demand is higher than what I can produce… I can't tell when I'm doing it wrong"). Proposal only: nothing in

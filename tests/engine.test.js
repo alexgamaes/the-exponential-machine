@@ -288,8 +288,12 @@ test('every card says what its effect really does', () => {
     if (e.type === 'clickPct') return text.includes(`${Math.round(e.value * 100)}%`);
     if (e.type === 'clickMul') return /2 guesses|twice/.test(text);
     if (e.type === 'demandMul') return text.includes(`${e.value}× more buyers`);
-    if (e.type === 'labMax') return text.includes(`limit goes up by ${e.value}×`);
-    if (e.type === 'fadeMul') return e.value === 2 && /twice as long/.test(text);
+    if (e.type === 'nextAdd') return text.toLowerCase().includes(`next models leap ${e.value}× further`);
+    if (e.type === 'leapAdd') return text.includes(`series leap ${e.value}× further`);
+    if (e.type === 'devMul' || e.type === 'progMul') return text.includes(`${e.value}×`);
+    if (e.type === 'carry') return text.includes(`${Math.round(e.value * 100)}%`);
+    if (e.type === 'killerApp') return text.includes(`+${e.value} boost`);
+    if (e.type === 'multi') return e.effects.every(x => says(text, x));
     return true; // unlockProducer, synergy: checked by hand
   };
   for (const st of [STAGE1, STAGE2, STAGE3]) {
@@ -323,33 +327,83 @@ test('computers sold go into homes, add speed and earn money; capped by what you
   assert.ok(Math.abs(s.dollars - (STAGE3.startDollars - 1000 + 10 * STAGE3.market.price)) < 1e-6);
 });
 
-test('the lab improves on an S-curve up to the chip limit; chip cards raise the limit', () => {
+test('the lab improves on an S-curve; Eight bits makes next models leap further', () => {
   const s = stage3();
-  const L = E.labLimit(s);
-  assert.equal(L, STAGE3.market.labMax);
-  const r = (a) => E.labRatio(s, undefined, a);
-  assert.equal(r(0), 1);
-  assert.ok(r(30) < r(60) && r(60) < r(120) && r(1e6) <= L + 1e-9);
-  assert.ok(r(60) - r(30) > r(300) - r(270), 'fast first, then slowing');
+  const m = STAGE3.market;
+  const p = (a) => E.labProgress(s, a);
+  assert.equal(p(0), 0);
+  assert.ok(p(20) < p(50) && p(50) < p(100) && p(1e6) <= 1);
+  assert.ok(p(50) - p(30) > p(200) - p(180), 'fast first, then slowing');
+  assert.ok(Math.abs(E.nextGain(s) - m.nextLeap) < 1e-9);
   s.bought.eightBit = s.time;
-  assert.ok(Math.abs(E.labLimit(s) - (L + 0.4)) < 1e-9);
+  assert.ok(Math.abs(E.nextGain(s) - (m.nextLeap + 0.2)) < 1e-9);
 });
 
-test('launching: only from 1.2×, the new model is faster, buyers come back, old homes keep their speed', () => {
+test('launching a next model: from 12% of the design, faster, a fresh wave of buyers, factories retool', () => {
   const s = stage3();
   assert.equal(E.launchBlock(s), 'workbench');
   E.buyProducer(s, 'workbench');
   assert.equal(E.launchBlock(s), 'lab');
   assert.equal(E.launchModel(s), false);
-  while (E.labRatio(s) < STAGE3.market.minRatio) E.tick(s, 1);
-  const before = E.modelDemand(s), homes1 = s.homes, ratio = E.labRatio(s), rate = E.getRate(s);
+  while (E.labProgress(s, E.modelAge(s)) < STAGE3.market.minProgress) E.tick(s, 1);
+  E.tick(s, 20);
+  const before = E.modelDemand(s), homes1 = s.homes, ratio = E.labRatio(s), rate = E.getRate(s), cap = E.capacity(s);
   assert.ok(E.launchModel(s));
   assert.equal(E.modelOnSale(s), 2);
   assert.ok(Math.abs(s.models[1].speed - ratio) < 1e-9);
   assert.equal(s.models[0].homes, homes1);
   assert.ok(E.modelDemand(s) > before, 'a new model has fresh buyers');
   assert.equal(E.getRate(s), rate, 'launching changes nothing already in homes');
-  assert.equal(E.labRatio(s), 1, 'the lab starts the next one');
+  assert.ok(Math.abs(E.capacity(s) - cap * STAGE3.market.retool.floor) < 1e-9, 'factories restart at 25%');
+  E.tick(s, STAGE3.market.retool.next);
+  assert.ok(Math.abs(E.capacity(s) - cap) < 1e-9, 'and are back to full after the retool time');
+});
+
+test('programs make every computer of their series faster, old ones included', () => {
+  const s = stage3();
+  E.buyProducer(s, 'workbench'); E.tick(s, 20);
+  const rate = E.getRate(s);
+  s.series[0].programs = STAGE3.market.programsPerX;          // +1×
+  const homesPart = rate - s.legacyRate;
+  assert.ok(Math.abs(E.getRate(s) - (s.legacyRate + 2 * homesPart)) < 1e-6 * rate);
+  assert.equal(E.programRate(s), 0, 'nobody writes programs before "A language for kits"');
+  s.bought.basic = s.time;
+  assert.ok(E.programRate(s) > 0);
+});
+
+test('a new series: needs the new chip, leaps further, starts with no programs (Closed keeps 80%)', () => {
+  const s = stage3();
+  E.buyProducer(s, 'workbench'); E.tick(s, 5);
+  assert.equal(E.launchBlock(s, 'series'), 'chip');
+  s.bought.cheapChip = s.time; E.tick(s, 1);
+  assert.ok(s.design, 'the design starts by itself');
+  s.series[0].programs = 1200;
+  for (let i = 0; i < 60; i++) E.tick(s, 1);
+  const r = E.labRatio(s, 'series');
+  assert.ok(r > E.labRatio(s, 'next'), 'a bigger leap than the next model');
+  const old = s.series[0].homes;
+  assert.ok(E.launchModel(s, 'series'));
+  assert.equal(E.seriesOnSale(s), 2);
+  assert.equal(s.series[1].programs, 0);
+  assert.ok(Math.abs(s.series[0].homes - old) < 1e-9 && s.series[0].programs >= 1200, 'the old series keeps its programs');
+  assert.ok(s.log.some(e => /none of the old programs run on it/i.test(e.text)));
+  // Closed
+  const c = stage3();
+  E.buyProducer(c, 'workbench'); c.bought.cheapChip = c.time; c.bought.openClosed = c.time; c.choices.openClosed = 'machines';
+  E.tick(c, 1); E.tick(c, 60); c.series[0].programs = 1000;
+  assert.ok(E.launchModel(c, 'series'));
+  assert.ok(Math.abs(c.series[1].programs - 800) < 1e-9);
+});
+
+test('a better chip moves a young design to it; a killer program goes to the series on sale', () => {
+  const s = stage3();
+  E.buyProducer(s, 'workbench'); s.bought.cheapChip = s.time; E.tick(s, 5);
+  const g = s.design.gain;
+  s.bought.chips = s.time; E.tick(s, 1);
+  assert.ok(Math.abs(s.design.gain - (g + 0.6)) < 1e-9);
+  s.dollars = 1e9; s.ops = 1e15; s.revealed.spreadsheet = s.time;
+  assert.ok(E.buyUpgrade(s, 'spreadsheet'));
+  assert.ok(Math.abs(s.series[0].bonus - 0.3) < 1e-9);
 });
 
 test('the engineers ship a model themselves near the limit', () => {
@@ -371,7 +425,7 @@ test('selling stops at the goal', () => {
   assert.equal(E.canLaunch(s), false);
 });
 
-test('a Stage 3 save round-trips; a v4 save (price tag) becomes Model 1 homes', () => {
+test('a Stage 3 save round-trips; a v4 save (price tag) becomes Model 1 homes in Series 1', () => {
   const s = stage3();
   E.buyProducer(s, 'workbench'); E.tick(s, 30);
   const t = E.deserialize(E.serialize(s));
@@ -384,6 +438,8 @@ test('a Stage 3 save round-trips; a v4 save (price tag) becomes Model 1 homes', 
   assert.equal(u.price, undefined);
   assert.equal(u.models.length, 1);
   assert.equal(u.models[0].homes, s.homes);
+  assert.equal(u.series.length, 1);
+  assert.equal(u.series[0].homes, s.homes);
   assert.ok(Math.abs(E.getRate(u) - E.getRate(s)) < 1e-6);
 });
 

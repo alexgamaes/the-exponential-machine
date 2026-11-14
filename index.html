@@ -73,31 +73,40 @@
         </div>
         <div id="homes-row" class="producer" hidden>
           <div class="producer-head"><span>Computers in homes</span><span id="homes-owned" class="producer-owned"></span></div>
-          <p id="homes-text"><span id="homes-gen"></span><br><span id="homes-total"></span></p>
+          <div id="homes-text">
+            <p id="homes-gen"></p>
+            <div id="series-grid" class="series-grid" hidden></div>
+            <p id="homes-programs" hidden></p>
+            <p id="homes-total"></p>
+          </div>
         </div>
         <div id="producer-list"></div>
         <p id="team-complete" class="muted-note" hidden></p>
       </section>
       <section id="market" class="panel" hidden>
-        <h2 id="market-title"></h2>
+        <h2 class="title-row"><span id="market-title"></span><span id="model-tag" class="model-tag"></span></h2>
         <p id="market-intro" class="muted-note first"></p>
         <div id="market-seg" class="seg" role="group"></div>
         <p id="sell-status"></p>
         <div id="models" hidden>
-          <p id="model-now" class="model-now"></p>
-          <p class="chart-cap">Buyers a second since launch</p>
           <div id="sales-chart" class="chart" aria-hidden="true">
             <span id="chart-max" class="chart-max"></span>
             <svg id="chart-svg" viewBox="0 0 120 40" preserveAspectRatio="none"></svg>
             <span id="chart-capline" class="chart-capline"></span>
           </div>
-          <p id="sales-line"></p>
-          <div class="lab">
-            <p id="lab-line"></p>
-            <div class="lab-bar"><div id="lab-fill" class="lab-fill"></div></div>
-            <p class="lab-under"><span id="lab-status"></span><span id="lab-limit"></span></p>
-            <button id="launch-btn" class="buy-btn" data-action="launch"></button>
-            <p id="lab-note" class="muted-note"></p>
+          <p id="supply-nums"></p>
+          <p id="supply-verdict"><b id="verdict-bold"></b> <span id="verdict-fix"></span></p>
+          <div id="lab-next" class="lab">
+            <p class="lab-head"><b id="next-head"></b><span id="next-phase"></span></p>
+            <div class="lab-bar"><div id="next-fill" class="lab-fill"></div></div>
+            <button id="next-btn" class="buy-btn" data-action="launch" data-kind="next"></button>
+            <p id="next-note" class="lab-note"></p>
+          </div>
+          <div id="lab-series" class="lab" hidden>
+            <p class="lab-head"><b id="series-head"></b><span id="series-phase"></span></p>
+            <div class="lab-bar"><div id="series-fill" class="lab-fill"></div></div>
+            <button id="series-btn" class="buy-btn" data-action="launch" data-kind="series"></button>
+            <p id="series-note" class="lab-note"></p>
           </div>
         </div>
         <p id="sell-customers" class="muted-note"></p>

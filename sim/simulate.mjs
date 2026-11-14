@@ -6,7 +6,8 @@
 //   node sim/simulate.mjs --config '{"revealGapSec":12}'                    # override CONFIG
 //   node sim/simulate.mjs --stage 2 --legacy 19000 --carry 200000           # start at Stage 2 alone
 //   node sim/simulate.mjs --sell 0.25                                       # never change how much time is sold
-//   node sim/simulate.mjs --launch never                                    # never launch a model (Stage 3); also eager, ratio:1.8, fade
+//   node sim/simulate.mjs --launch never                                    # Stage 3: never launch (also eager, frac:0.3)
+//   node sim/simulate.mjs --series keep --money factories                   # Stage 3: never a new series; no programmers
 // By default every run plays all built stages in a row (Stage 1 -> 2 ...) with the same state.
 //
 // Checks per run:
@@ -74,9 +75,12 @@ function run(profileName, choice, verbose = false) {
 function playStage(s, profileName, choice, verbose) {
   const prof = PROFILES[profileName];
   const st = E.stageData(s);
-  const [winLo, winHi0, maxGapLimit] = WINDOWS[s.stage][profileName];
+  const [winLo, winHi0, gap0] = WINDOWS[s.stage][profileName];
   // A player who never times a launch (or launches at every chance) should lose time but still finish.
-  const winHi = s.stage === 3 && launchArg !== 'smart' ? Math.max(winHi0, 18) : winHi0;
+  const lazy = launchArg !== 'smart' || moneyArg !== 'smart' || seriesArg !== 'theta:1.2';
+  // A lazy player (never launches, no programmers) must still finish, just much later and with longer waits.
+  const winHi = s.stage === 3 && lazy ? Math.max(winHi0, 25) : winHi0;
+  const maxGapLimit = s.stage === 3 && lazy ? Math.max(gap0, 75) : gap0;
   const t0 = s.time;
   const T = () => s.time - t0;
   const events = [];      // [time, kind, text]
@@ -118,7 +122,7 @@ function playStage(s, profileName, choice, verbose) {
       const cps = clicksAt(prof.clicks, T());
       snaps.push({ min: Math.round(T() / 60), rate, click: E.getClickValue(s), clickShare: cps * E.getClickValue(s) / rate, cps, owned: Object.values(s.producers).join('/'),
         total: E.stageTotal(s), legacyShare: legacy / rate, task: st.task.size / Math.max(eff, 1e-9),
-        market: E.marketKind(s) === 'models' ? (() => { const f = E.modelFlow(s); return `   model ${E.modelOnSale(s)}  lab ${E.labRatio(s).toFixed(2)}x  make ${fmt(f.capacity)}/s  buyers ${fmt(f.demand)}/s  homes ${fmt(s.homes)}  $${fmt(s.dollars)}`; })() : '' });
+        market: E.marketKind(s) === 'models' ? (() => { const f = E.modelFlow(s); return `   series ${E.seriesOnSale(s)} ×${E.seriesMul(s, s.series.length - 1).toFixed(1)}  model ${E.modelOnSale(s)}  make ${fmt(f.capacity)}/s  buyers ${fmt(f.demand)}/s  homes ${fmt(s.homes)}  $${fmt(s.dollars)}`; })() : '' });
     }
   }
 
@@ -150,7 +154,7 @@ function playStage(s, profileName, choice, verbose) {
     for (const p of snaps) console.log(`${String(p.min).padStart(3)} ${fmt(p.rate).padStart(9)} ${fmt(p.click).padStart(9)} ${p.cps.toFixed(1).padStart(8)} ${((p.clickShare * 100).toFixed(1) + '%').padStart(11)} ${p.owned.padStart(7)} ${fmt(p.total).padStart(13)}   ${(p.legacyShare * 100).toFixed(0).padStart(11)}%   ${fmtDur(p.task)}${p.market}`);
   }
 
-  return { launches: s.models?.length ? s.models.length - 1 : 0, stage: s.stage, profile: profileName, choice, finished, mins, maxGap, clump, legacy,
+  return { launches: s.models?.length ? `${s.models.length - 1} (${s.series.length} series)` : 0, stage: s.stage, profile: profileName, choice, finished, mins, maxGap, clump, legacy,
            endRate: E.getRate(s), upgrades: buys.length, fails };
 }
 
@@ -179,22 +183,47 @@ function chooseSell(s) {
   E.setSell(s, best);
 }
 
-// Stage 3: when to launch the next model. 'smart' (default) launches once the lab starts slowing down
-// (its average gain per second has peaked), or sooner when buyers fade below what the factories make.
-// --launch never | eager (as soon as allowed) | ratio:1.8 | fade (when buyers drop under half) are lazier players.
-// Engineers ship a model by themselves near the chip's limit, so 'never' still finishes.
+// Stage 3: when to launch, and whether to change series.
+// --launch smart (default: when the lab says "Slowing down", or earlier if the factories stand idle) | eager | never | frac:X
+// --series theta:1.2 (default: launch a new series when one computer of it is worth 1.2× a next model launched well)
+//          | keep (never change series) | break (a new series whenever one can launch)
+// The engine moves the new-series design to a better chip by itself; the bot only decides when to launch.
 function chooseLaunch(s) {
-  if (!E.canLaunch(s) || launchArg === 'never') return;
-  const r = E.labRatio(s), L = E.labLimit(s);
-  let want;
-  if (launchArg === 'eager') want = true;
-  else if (launchArg.startsWith('ratio:')) want = r >= Number(launchArg.slice(6));
-  else if (launchArg === 'fade') want = E.freshness(s) < 0.5;
-  else {
-    const f = E.modelFlow(s), ph = E.labPhase(s);
-    want = (f.demand < 0.7 * f.capacity && r >= 1 + 0.35 * (L - 1)) || ph === 'slowing' || ph === 'limit';
-  }
-  if (want) E.launchModel(s);
+  if (launchArg === 'never') return;
+  const theta = seriesArg === 'keep' ? Infinity : seriesArg === 'break' ? 0 : Number(seriesArg.slice(6));
+  const m = E.stageData(s).market, cur = s.models[s.models.length - 1].speed, i = s.series.length - 1;
+  const g = E.nextGain(s);
+  const nextRef = cur * E.seriesMul(s, i) * (1 + 0.6 * g);                                 // a next model, launched well
+  const seriesRef = s.design ? s.design.base * (1 + 0.6 * s.design.gain) * E.seriesMulOf(m, E.carried(s)) : 0;
+  const f = E.modelFlow(s);
+  const ready = (kind) => {
+    if (!E.canLaunch(s, kind)) return false;
+    if (launchArg === 'eager') return true;
+    const p = kind === 'series' ? E.designProgress(s) : E.labProgress(s, E.modelAge(s));
+    if (launchArg.startsWith('frac:')) return p >= Number(launchArg.slice(5));
+    const ph = E.labPhase(s, kind);
+    return (f.demand < 0.7 * f.capacity && p >= 0.35) || ph === 'slowing' || ph === 'limit';
+  };
+  const planned = s.design && seriesRef >= theta * nextRef;
+  if (planned && ready('series') && E.saleValue(s, 'series') >= theta * nextRef / (1 + 0.6 * g)) { E.launchModel(s, 'series'); return; }
+  if (launchArg === 'eager' && theta === 0 && E.canLaunch(s, 'series')) { E.launchModel(s, 'series'); return; }
+  // hold next models while a planned new series is well on its way: each one eats into its lead
+  if (planned && launchArg !== 'eager' && E.designProgress(s) >= 0.3) return;
+  if (ready('next')) E.launchModel(s, 'next');
+}
+
+// Money (Stage 3): a factory is worth the computers it would actually sell (only while buyers wait);
+// a programmer is worth what its programs add to every computer of the series on sale.
+function programmerValue(s, p) {
+  const m = E.stageData(s).market, i = s.series.length - 1, P = s.series[i].programs;
+  let work = 0; for (const md of s.models) if ((md.series ?? 0) === i) work += md.homes * md.speed;
+  const out = E.producerOutput(s, p.id);
+  return (E.seriesMulOf(m, P + out * 30) - E.seriesMulOf(m, P)) * work * E.homeOutput(s) / E.producerCost(s, p.id);
+}
+function makerValue(s, p) {
+  const f = E.modelFlow(s);
+  const extra = Math.min(E.producerOutput(s, p.id), Math.max(0, f.demand * 0.8 - f.capacity));
+  return extra * E.saleValue(s) * E.homeOutput(s) * 30 / E.producerCost(s, p.id);
 }
 
 function decide(s, choice, ev, greedy = false) {
@@ -212,7 +241,12 @@ function decide(s, choice, ev, greedy = false) {
     }
     // producers paid with money: buy whenever affordable (nothing else competes for dollars except dollar cards)
     const moneyOpen = st.upgrades.some(u => u.currency === 'dollars' && s.revealed[u.id] !== undefined && !(u.id in s.bought));
-    const mps = st.producers.filter(p => p.currency === 'dollars' && E.producerUnlocked(s, p.id));
+    let mps = st.producers.filter(p => p.currency === 'dollars' && p.makes !== 'programs' && E.producerUnlocked(s, p.id));
+    const prog = st.producers.find(p => p.makes === 'programs' && E.producerUnlocked(s, p.id));
+    if (prog && moneyArg !== 'factories') {
+      const best = mps.length ? Math.max(...mps.map(p => makerValue(s, p))) : 0;
+      if (moneyArg === 'programmers' || programmerValue(s, prog) > best) mps = [prog];
+    }
     const mp = mps.length ? mps.reduce((a, b) =>
       E.producerOutput(s, a.id) / E.producerCost(s, a.id) >= E.producerOutput(s, b.id) / E.producerCost(s, b.id) ? a : b) : null;
     if (mp && !moneyOpen && E.buyProducer(s, mp.id)) { ev('buy-producer', mp.id); continue; }
@@ -250,6 +284,8 @@ const legacyArg = arg('--legacy') !== undefined ? Number(arg('--legacy')) : unde
 const carryArg = arg('--carry') !== undefined ? Number(arg('--carry')) : undefined;
 const sellArg = arg('--sell') || 'smart';
 const launchArg = arg('--launch') || 'smart';
+const seriesArg = arg('--series') || 'theta:1.2';
+const moneyArg = arg('--money') || 'smart';
 if (arg('--config')) Object.assign(CONFIG, JSON.parse(arg('--config')));
 // --data '{"computer":{"growth":1.2}}' patches producers/upgrades/goal/finale by id (any built stage)
 if (arg('--data')) {

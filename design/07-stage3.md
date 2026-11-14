@@ -1,7 +1,7 @@
 # Stage 3 — The Garage (Nov 1971 → Jan 1984): merged design
 
 Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
-decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Built, then redesigned (§9):** the price tag of §4 was replaced by launching models. §1–3 and §5–7 (story, pace, beats) still hold; §4 does not.
+decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Built, then redesigned twice (§9, §10):** the price tag of §4 became launching models, then series and programs. §1–3 and §5–7 (story, pace, beats) still hold; §4 does not.
 
 ## 1. The stage in one paragraph
 You are the Bletchley codebreaker, now about 55. You leave the computing division with a pension, the pencil and the
@@ -134,3 +134,23 @@ The player found the price tag dull ("very simple to set the price, not a cool f
   `npm test` runs the lazy player with `--launch never` (Stage 3 window widened to 18 min for lazy policies).
 - **Not built from the proposals:** the finale inside the lab block, orders piling up, per-model prices, "Cut the price".
 - "Half a million homes" beat → 150,000 (homes now end ~170,000). Save version 5 (a v4 save's homes become Model 1s).
+
+## 10. Second redesign, as built (Nov 14): series and programs
+The player: "no penalty for releasing a model right when it's available… it's very simple… not much genius touch", and
+"most of the time the demand is higher than what I can produce". Critique `stage3/21-strategy-critique.md` (buyers > supply
+100% from minute 7; the solved guide fit on an index card). Design `22-depth-design.md` (word "series", §6); screen
+`23-ux-series.md`. Previous version: commit 9d366d0 era (`launch the next model`), price version tag `stage3-price`.
+- **Series:** computers that run the same programs. Programs (outsiders ∝ √homes of the series on sale, plus Programmers,
+  a new producer paid in money) give every computer of their series +1× per 600. The lab designs the **next model**
+  (+0.35×, keeps programs) and, from The $25 chip, a **new series** (+1.4× + chip cards, no programs; Closed keeps 80%).
+  The new-series design starts and moves to a better chip by itself (no restart button; ledger notes explain it).
+- **Costs you can see:** every launch retools the factories (25% → full over 20 s, 30 s for a new series); buyers come in a
+  wave after a launch and fade. The supply line names the state and its fix (short of computers / short of buyers /
+  switching over); the new-series button shows "Worth N× a next model".
+- **Open:** outsiders ×3, next models +0.2 → stay in one series. **Closed:** new series +0.5, keep 80% of programs,
+  outsiders ×0.6 → change series often. Killer programs (+0.3 boost) go to the series on sale.
+- **Sim** (`--launch`, `--series keep|break|theta:X`, `--money smart|factories|programmers`), average player:
+  Open 13.0 (stay) vs 14.0 (switch often); Closed 12.7 (switch) vs 13.8 (stay); eager +19–30%; never launching +20–31%;
+  no programmers +19–37%. All 12 smart runs 12.7–13.1 min, quiet ≤ 30 s, end 2.0–2.6×10¹². Lazy runs (never launch, no
+  programmers) take 19.6–23.7 min; their limits are widened (25 min, 75 s) so `npm test` checks they still finish.
+- Goal reward ×1.6. Home beats 100 / 1,000 / 10,000 / 25,000 / 40,000. Save version 6 (a v5 save becomes Series 1).
