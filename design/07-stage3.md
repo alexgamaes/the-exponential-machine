@@ -128,7 +128,7 @@ The player found the price tag dull ("very simple to set the price, not a cool f
 - **Screen:** "Your computers on sale": model on sale, a chart of buyers a second since launch (bars every 2 s, dotted
   expected fade, dashed "you can make N"), the sales line, the lab bar, its phase ("Just started" · "Getting better fast" ·
   "Slowing down" · "Nearly as good as this chip allows"), the launch button and why it is off. "Computers in homes" in the
-  garage lists homes by model. Each launch writes a ledger line describing the model (`market.modelLines`).
+  garage: "Model **5** runs **23×** as fast as Model 1." / "Together: **710 million** operations per second." (UX: per-model counts were noise). Each launch writes a ledger line describing the model (`market.modelLines`).
 - **Sim** (`--launch smart|never|eager|ratio:X|fade`): smart 12.9–13.1 min, 8–9 launches, quiet ≤ 30 s, end ~2.1–2.2×10¹².
   Never launching 16.1–16.3 min (+24%); launching at every chance 15.8–16.4 (+23%); always at 1.8× ≈ smart (wide sweet spot).
   `npm test` runs the lazy player with `--launch never` (Stage 3 window widened to 18 min for lazy policies).

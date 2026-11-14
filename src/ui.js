@@ -38,7 +38,7 @@ function resetStage(s, st) {
   shownStage = s.stage;
   prodEls.clear(); cardEls.clear(); etaCache.clear();
   lockedEl = null; bigEl = null; goalKind = null;
-  lastTeamText = ''; lastGoalText = ''; chartKey = '';
+  lastTeamText = ''; lastGoalText = ''; chartKey = ''; homesKey = '';
   $('producer-list').replaceChildren();
   $('upgrade-list').replaceChildren();
   // Era palette: one body class per stage; CSS cross-fades the colours.
@@ -125,7 +125,7 @@ export function render(s) {
   if (showHomes) {
     const each = E.homeOutput(s);
     set($('homes-owned'), fmt(Math.floor(s.homes)));
-    set($('homes-text'), homesByModel(s) + ` Together: ${fmt(E.homeWork(s) * each, 1)} ${unit} per second.`);
+    renderHomes(s, E.homeWork(s) * each, unit);
   }
   for (const p of st.producers) {
     const unlocked = E.producerUnlocked(s, p.id);
@@ -468,13 +468,18 @@ function renderMarket(s, unit) {
 
 // ---------- Stage 3: launching models ----------
 const ratioText = (r) => `${(Math.round(r * 10) / 10).toFixed(1)}×`;
-// "Model 1: 900 · Model 2: 6,100 · Model 3: 22,000." The oldest fold into one count when there are many.
-function homesByModel(s) {
-  const ms = s.models, parts = [];
-  const keep = 3, cut = ms.length > keep + 1 ? ms.length - keep : 0;
-  if (cut) parts.push(`Models 1–${cut}: ${fmt(Math.floor(ms.slice(0, cut).reduce((a, m) => a + m.homes, 0)))}`);
-  ms.forEach((m, i) => { if (i >= cut && m.homes >= 1) parts.push(`Model ${i + 1}: ${fmt(Math.floor(m.homes))}`); });
-  return parts.join(' · ') + '.';
+// Computers in homes: how far your launches have come (changes only at a launch), and what all homes make.
+let homesKey = '';
+function renderHomes(s, total, unit) {
+  const n = s.models.length, r = n ? s.models[n - 1].speed / s.models[0].speed : 1;
+  const x = r < 10 ? (Math.round(r * 10) / 10).toFixed(1) : String(Math.round(r));
+  const tot = fmt(sig2(total), 1);
+  const key = `${n}|${x}|${tot}|${unit}`;
+  if (key === homesKey) return;
+  homesKey = key;
+  $('homes-gen').replaceChildren(...(n <= 1 ? ['Every one is a Model 1, the speed you started with.']
+    : ['Model ', h('b', {}, String(n)), ' runs ', h('b', {}, `${x}×`), ' as fast as Model 1.']));
+  $('homes-total').replaceChildren('Together: ', h('b', {}, tot), ` ${unit} per second.`);
 }
 // Round a chart's top up to 1, 2 or 5 × 10^k, so the scale moves rarely.
 function niceCeil(v) {
