@@ -65,9 +65,11 @@ body {
   font-family: var(--font-ui);
   font-weight: 600;
   line-height: 1.45;
-  max-width: 72rem;
+  max-width: 100rem;
   margin-inline: auto;
-  padding: 0 1rem 6rem;
+  padding: 0 1.5rem 6rem;
+  --ledger-w: 28rem;
+  --k-money: var(--ok);
   transition: background-color 0.6s, color 0.6s;
 }
 .panel, .card, .buy-btn, #goal, #click-wrap, .main-btn, .bar, #era {
@@ -138,14 +140,22 @@ body[data-goal-kind="lifetime"] #goal .bar > div {
 .swatch-balance { background: var(--k-balance); }
 .swatch-lifetime { background: var(--k-lifetime); }
 #goal-text { font-weight: 700; flex: 1; }
-#goal-nums { font-family: var(--font-num); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+#goal-nums { font-family: var(--font-num); font-size: 0.9rem; font-variant-numeric: tabular-nums; flex-basis: 100%; }
+/* (numbers on their own line, so the goal text never re-wraps as they grow) */
 
 /* ---------- core ---------- */
-#core { text-align: center; padding: 2rem 0 1.5rem; position: relative; }
-#counter { font-family: var(--font-num); font-weight: 700; font-size: 2.5rem; font-variant-numeric: tabular-nums; }
+#core { text-align: center; padding: 1.5rem 0 1.25rem; position: relative; }
+#balances { display: grid; grid-template-columns: 1fr; gap: 0.5rem 2rem; }
+#balances.two { grid-template-columns: 1fr 1fr; } /* only once money shows; until then "You have" stays centred */
+.counter { font-family: var(--font-num); font-weight: 700; font-size: 2.5rem; font-variant-numeric: tabular-nums; }
 #unit { font-size: 1.25rem; }
-#rate { font-family: var(--font-num); font-size: 1.05rem; margin-top: 0.25rem; }
-#have-caption { font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+.rate { font-family: var(--font-num); font-size: 1.05rem; margin-top: 0.25rem; min-height: 1.5em; }
+.caption { font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+/* reserve the slots, so lines that appear later never push the button down */
+#rate[hidden], #total[hidden], #team[hidden] { display: block !important; visibility: hidden; }
+#total { min-height: 1.4em; }
+body.has-market .rate { min-height: 3em; } /* the speed line may wrap once selling adds "(25% sold)" */
+#team { min-height: 1.45em; }
 #total { font-family: var(--font-num); font-size: 0.95rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 #team { font-size: 0.95rem; color: var(--muted); margin-top: 0.3rem; transition: color 0.4s; }
 #team.flash { color: var(--ok); transition: none; }
@@ -171,7 +181,7 @@ body[data-goal-kind="lifetime"] #goal .bar > div {
 @keyframes float-up { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 -2.5rem; } }
 
 /* ---------- panels ---------- */
-#columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: start; }
+#columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .panel {
   background: var(--surface); border: 1px solid var(--border);
   padding: 1rem; margin-top: 1.25rem;
@@ -202,8 +212,8 @@ body[data-goal-kind="lifetime"] #goal .bar > div {
   position: relative; animation: appear 0.25s ease-out;
 }
 .card:last-child { margin-bottom: 0; }
-.card-head { display: flex; justify-content: space-between; gap: 1rem; font-weight: 700; }
-.card-cost { font-family: var(--font-num); white-space: nowrap; }
+.card-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 1rem; font-weight: 700; }
+.card-cost { font-family: var(--font-num); }
 .card-effect { margin-top: 0.2rem; }
 .card.unaffordable { border-style: dashed; border-color: var(--soft-border); cursor: default; }
 .card.affordable:hover { background: var(--accent); color: var(--accent-text); }
@@ -220,14 +230,28 @@ body[data-goal-kind="lifetime"] #goal .bar > div {
 .choice-options .buy-btn small { display: block; font-weight: 600; font-size: 0.9rem; }
 
 /* ---------- ledger ---------- */
-#log { list-style: none; margin: 0; padding: 0; max-height: 22rem; overflow-y: auto; }
+#log { list-style: none; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; }
+#ledger { display: flex; flex-direction: column; }
+#ledger h2 { display: flex; justify-content: space-between; align-items: baseline; }
+#log-new { padding: 0 0.25rem; font-family: var(--font-ui); font-size: 0.85rem; font-weight: 700; color: var(--accent); }
+#log li:not(.stage-divider):first-child { box-shadow: inset 3px 0 0 var(--accent); padding-left: 0.6rem; }
+@media (min-width: 64rem) {
+  body { padding-right: calc(var(--ledger-w) + 3rem); }
+  #ledger { position: fixed; top: 0; bottom: 0; margin: 0; width: var(--ledger-w); box-sizing: border-box;
+    right: max(1.5rem, calc((100vw - 100rem) / 2 + 1.5rem)); border-top-width: 0; border-bottom-width: 0; }
+  #log { flex: 1; min-height: 0; }
+}
+@media (min-width: 64rem) and (max-width: 85rem) { body { --ledger-w: 22rem; } .counter { font-size: 2rem; } }
+@media (max-width: 85rem) { .buy-btn { width: 100%; flex-wrap: wrap; gap: 0 1rem; } .buy-btn .cost { white-space: nowrap; } }
+@media (max-width: 64rem) { #ledger { height: 18rem; margin: 0 0 1.25rem; } #log { flex: 1; min-height: 0; } }
 #log li { padding: 0.4rem 0; border-top: 1px dashed var(--soft-border); display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.75rem; }
 #log li:first-child { border-top: none; }
 #log .when { font-family: var(--font-era); font-weight: 400; font-size: 0.95rem; }
 #log .what { font-weight: 600; overflow-wrap: anywhere; }
 #log li.milestone .what { font-weight: 700; }
 #log li.upgrade .what, #log li.note .what { color: var(--muted); }
-#log li.fresh { animation: appear 0.4s ease-out; }
+#log li.fresh { animation: appear 0.4s ease-out, fresh-bg 2s ease-out; }
+@keyframes fresh-bg { from { background: var(--bar-bg); } to { background: transparent; } }
 
 footer { margin-top: 2rem; text-align: center; }
 .link-btn { background: none; border: none; text-decoration: underline; cursor: pointer; color: var(--muted); padding: 0.75rem; }
@@ -238,7 +262,7 @@ body.next #columns { display: none; }
 
 /* ---------- phone ---------- */
 @media (max-width: 40rem) {
-  #columns { grid-template-columns: 1fr; }
+  #columns { grid-template-columns: minmax(0, 1fr); }
   #core { padding-bottom: 0.5rem; }
   #click-wrap {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; margin: 0;
@@ -250,20 +274,20 @@ body.next #columns { display: none; }
   #goal-text { flex-basis: 100%; order: 2; }
   #goal-nums { flex-basis: 100%; order: 3; }
   #rate { font-size: 0.95rem; }
-  .buy-btn { width: 100%; flex-wrap: wrap; gap: 0 1rem; }
-  .buy-btn .cost { white-space: nowrap; }
   #era { flex-wrap: nowrap; }
   .era-left { min-width: 0; }
-  #counter { font-size: 2rem; }
+  .counter { font-size: 2rem; }
   #unit { font-size: 1.1rem; }
+  #ledger { height: 13rem; }
+  #balances.two { grid-template-columns: 1fr; }
   .meter .bar { width: 5rem; }
   #log li { grid-template-columns: 1fr; gap: 0; }
 }
 
 /* ---------- selling computer time ---------- */
 .col { display: grid; gap: 1.25rem; align-content: start; }
-#money { font-family: var(--font-num); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
-.swatch-money { background: var(--ok); }
+.swatch-money, .dollars::before { background: var(--k-money); }
+.dollars::before { content: ''; display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.35rem; vertical-align: 0.05rem; }
 .muted-note.first { margin: 0 0 0.75rem; }
 .seg { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin-bottom: 0.6rem; }
 .seg-label { font-weight: 700; margin-right: 0.75rem; }

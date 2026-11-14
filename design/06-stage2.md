@@ -27,7 +27,8 @@ Brief: `design/stage2/00-brief.md`. This file is the source of truth for Stage 2
 - Save version 3 (money and the sell share added); older saves are migrated, never dropped. A finished v1 save opens Stage 2.
 
 ## 3. Screen
-- Under the counter: "Made since 1946: N" and, once selling opens, "Money: $N · +$N per second". The "Sell computer time" panel sits under "Your lab" (§6).
+- Under the counter: "Made since 1946: N". Once selling opens, "Money" becomes a second counter beside "You have" (until then "You have" stays centred); dollar prices carry the money swatch. The "Sell computer time" panel sits under "Your lab" (§6).
+- Layout (all stages, `design/review/05-ux-layout.md`): on a laptop the ledger is a full-height column on the right that scrolls on its own; below 1024 px it sits under the button at a fixed height. Goal numbers sit on their own line, and the lines under the counter keep their space, so the button never moves.
 - Ledger divider "Stage 2 · The computing lab", then the ENIAC line (Stage 1's last word) and the opening line. Stage 1 has its own divider at the very start.
 - "Your lab" panel: a fixed **Legacy** row ("Bletchley Park, 1939–45 · N per second, forever.") above the producers.
 - "Made since 1946: N" replaces "Checked in total" (it matches the goal bar).

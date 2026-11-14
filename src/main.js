@@ -31,6 +31,8 @@ function awayCatchUp(st, seconds) {
   if (gained > 0) E.note(st, `While you were away (${fmtDuration(Math.min(seconds, CONFIG.offlineMaxSec))}), ${E.phrase(st, 'away', { n: fmt(gained) })}` +
     (earned >= 1 ? `, and earned $${fmt(earned)}` : '') + '.');
 }
+// Back at the top of the ledger: the newest lines are in view, so hide "New lines".
+document.getElementById('log').addEventListener('scroll', (e) => { if (e.target.scrollTop <= 8) document.getElementById('log-new').hidden = true; }, { passive: true });
 setInterval(save, SAVE_EVERY_MS);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 window.addEventListener('pagehide', save);
@@ -105,6 +107,7 @@ document.addEventListener('click', (e) => {
       mainBtn.focus({ preventScroll: true });
       break;
     case 'sell': E.setSell(s, Number(btn.dataset.value)); break;
+    case 'log-top': document.getElementById('log').scrollTop = 0; break;
     case 'dev-stage':
       s = E.startAtStage(Number(btn.dataset.stage));
       save(); location.reload();

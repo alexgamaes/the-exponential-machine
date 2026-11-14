@@ -37,11 +37,19 @@
 
   <main>
     <section id="core">
-      <div id="have-caption"><span class="swatch swatch-balance"></span>You have</div>
-      <div id="counter"><span id="ops"></span> <span id="unit"></span></div>
+      <div id="balances">
+        <div class="balance">
+          <div id="have-caption" class="caption"><span class="swatch swatch-balance"></span>You have</div>
+          <div id="counter" class="counter"><span id="ops"></span> <span id="unit"></span></div>
+          <div id="rate" class="rate" hidden></div>
+        </div>
+        <div class="balance" id="money" hidden>
+          <div class="caption"><span class="swatch swatch-money"></span>Money</div>
+          <div id="money-text" class="counter"></div>
+          <div id="money-rate" class="rate"></div>
+        </div>
+      </div>
       <div id="total" hidden><span class="swatch swatch-lifetime"></span><span id="total-text"></span></div>
-      <div id="money" hidden><span class="swatch swatch-money"></span><span id="money-text"></span></div>
-      <div id="rate" hidden></div>
       <div id="team" hidden></div>
       <div id="click-wrap">
         <button id="main-btn" class="main-btn"></button>
@@ -49,6 +57,11 @@
         <div id="floaters" aria-hidden="true"></div>
       </div>
     </section>
+
+    <aside id="ledger" class="panel" aria-labelledby="ledger-title">
+      <h2 id="ledger-title"><span>The ledger</span><button id="log-new" class="link-btn" data-action="log-top" hidden>New lines ↑</button></h2>
+      <ol id="log"></ol>
+    </aside>
 
     <div id="columns">
       <div class="col">
@@ -83,11 +96,6 @@
       <p>The next stage is not built yet.</p>
       <p>Your speed carries over: <b id="legacy-rate"></b>.</p>
       <button class="buy-btn" data-action="reset">Start again from 1939</button>
-    </section>
-
-    <section id="ledger" class="panel">
-      <h2>The ledger</h2>
-      <ol id="log"></ol>
     </section>
   </main>
 

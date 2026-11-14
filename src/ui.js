@@ -44,6 +44,7 @@ function resetStage(s, st) {
   // Era palette: one body class per stage; CSS cross-fades the colours.
   for (const c of [...document.body.classList]) if (c.startsWith('era-')) document.body.classList.remove(c);
   document.body.classList.add('era-' + st.era);
+  document.body.classList.toggle('has-market', !!st.market); // decided once per stage, so nothing moves mid-stage
   if (!first) {
     pulse(document.body, 'stage-enter', 2600);
     announce(`${fmtDate(s.date)}. You are now ${st.role}. Your speed carries over.`);
@@ -136,7 +137,7 @@ export function render(s) {
     set(el.owned, `${n} owned`);
     const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace(/^Each checks 1 guesses/, 'Each checks 1 guess');
     set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} per second.` : ''));
-    set(el.cost, price(p, Math.ceil(cost), unit));
+    set(el.cost, price(p, Math.ceil(cost), unit)); toggle(el.cost, 'dollars', p.currency === 'dollars');
     const can = s.phase === 'playing' && E.wallet(s, p) >= cost;
     if (el.btn.disabled === can) el.btn.disabled = !can;
     show(el.btn, s.phase === 'playing');
@@ -157,7 +158,7 @@ export function render(s) {
     toggle(el.root, 'unaffordable', !can);
     fill(el.progress, have / u.cost);
     const income = u.currency === 'dollars' ? E.sellFlow(s).dollarsPerSec : rate * (1 - E.sellShare(s)) + (eff - rate); // clicks are never sold
-    set(el.cost, price(u, u.cost, unit) + (can ? '' : cardEta(u.id, u.cost - have, income)));
+    set(el.cost, price(u, u.cost, unit) + (can ? '' : cardEta(u.id, u.cost - have, income))); toggle(el.cost, 'dollars', u.currency === 'dollars');
     for (const b of el.optionBtns) if (b.disabled === can) b.disabled = !can;
   }
   // locked preview card (the next thing to aim for)
@@ -169,7 +170,7 @@ export function render(s) {
     }
     set(lockedEl.name, locked.upgrade.name);
     const p = locked.progress;
-    set(lockedEl.cost, price(locked.upgrade, locked.upgrade.cost, unit));
+    set(lockedEl.cost, price(locked.upgrade, locked.upgrade.cost, unit)); toggle(lockedEl.cost, 'dollars', locked.upgrade.currency === 'dollars');
     const why = p ? p.phrase.charAt(0).toLowerCase() + p.phrase.slice(1) : '';
     set(lockedEl.needs, !p ? (open.length >= 2 ? 'Appears when you buy one of the ideas above.' : 'Appears in a moment.')
       : p.kind === 'upgrade' ? `Locked: ${why}.` : `Locked: ${why} (${fmt(p.have)} of ${fmt(p.need)}).`);
@@ -336,6 +337,9 @@ function renderLog(s) {
   const first = !logKey;
   logKey = key;
   const ol = $('log');
+  // Keep the reader's place if they scrolled down; otherwise the newest line stays in view at the top.
+  const reading = !first && ol.scrollTop > 8;
+  const fromBottom = ol.scrollHeight - ol.scrollTop;
   ol.replaceChildren(...s.log.map((e, i) => {
     if (e.kind === 'stage') return h('li', { class: 'stage-divider' + (i === 0 && !first ? ' fresh' : '') }, h('span', {}, e.text));
     const li = h('li', { class: e.kind + (i === 0 && !first ? ' fresh' : '') },
@@ -343,6 +347,7 @@ function renderLog(s) {
       h('span', { class: 'what' }, e.text));
     return li;
   }));
+  if (reading) { ol.scrollTop = ol.scrollHeight - fromBottom; show($('log-new'), true); }
 }
 
 // "+N" floaters over the main button. At most 5 alive; extra clicks merge into the newest.
@@ -404,10 +409,13 @@ function renderMarket(s, unit) {
   const st = E.stageData(s);
   const open = E.sellOpen(s);
   show($('market'), open);
-  show($('money'), !!st.market && (open || s.dollars > 0) && s.phase !== 'next');
+  const moneyOn = !!st.market && (open || s.dollars > 0) && s.phase !== 'next';
+  show($('money'), moneyOn);
+  toggle($('balances'), 'two', moneyOn);
   if (!st.market) return;
   const flow = E.sellFlow(s);
-  set($('money-text'), `Money: ${money(s.dollars)}` + (flow.dollarsPerSec > 0 ? `  ·  +${money(flow.dollarsPerSec)} per second` : ''));
+  set($('money-text'), money(s.dollars));
+  set($('money-rate'), flow.dollarsPerSec > 0 ? `+${money(flow.dollarsPerSec)} per second` : '');
   if (!open) return;
   for (const b of $('market').querySelectorAll('[data-action="sell"]')) {
     const on = Number(b.dataset.value) === s.sell;
