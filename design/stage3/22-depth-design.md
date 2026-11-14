@@ -218,3 +218,9 @@ YOUR GARAGE
 - **End speed** 1.9–2.5×10¹² with the goal at ×1.6. Closed ends ~20% faster than Open. Stage 4's arrival should take the average.
 - **Not used:** the warehouse and announcing early (B). They are a good later layer if the stage still feels thin,
   but they add a fourth number to the panel. The 1983 price war would fit as one late event on top of A.
+
+## 6. Player decisions (Nov 14)
+- **Name: "series", not "family"** (player's choice). Labels: "Next model" / "New series"; "Series 2 (Models 4–8)";
+  "None of the old programs run on the new series." Code may keep `platforms` internally.
+- Lead designer's simplification: no "Start again on the new chip" button; a design restarts on a better chip by itself
+  (rule to be set so the sim's restart logic still applies).
