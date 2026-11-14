@@ -1,7 +1,6 @@
 # Stage 3 — The Garage (Nov 1971 → Jan 1984): merged design
 
 Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
-Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
 decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Built, then redesigned (§9):** the price tag of §4 was replaced by launching models. §1–3 and §5–7 (story, pace, beats) still hold; §4 does not.
 
 ## 1. The stage in one paragraph
