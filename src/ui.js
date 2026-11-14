@@ -590,6 +590,8 @@ function renderModels(s) {
   fill($('next-fill'), E.labProgress(s, E.modelAge(s)));
   fill($('series-fill'), chipIn ? E.designProgress(s) : 0);
   renderChart(s, f);
+  // while the factories switch over, a thin bar shows building speed coming back (25% -> 100%)
+  $('retool-fill').style.width = `${(100 * E.retoolFactor(s)).toFixed(1)}%`;
   const buttons = [['next-btn', 'next'], ['series-btn', 'series']];
   for (const [id, kind] of buttons) { const off = !E.canLaunch(s, kind); if ($(id).disabled !== off) $(id).disabled = off; }
   if (!textReady(s, 'models')) return;
@@ -608,7 +610,7 @@ function renderModels(s) {
   const programmers = st.producers.some(p => p.makes === 'programs' && E.producerUnlocked(s, p.id));
   const [bold, fix] = {
     none: ['Nobody can build one yet.', 'Set up a workbench.'],
-    switch: [`Switching over to Model ${n}: ${Math.ceil(E.retoolLeft(s))} s left.`, 'It is the cost of a launch.'],
+    switch: [`Switching over to Model ${n}: ${Math.ceil(E.retoolLeft(s))} s left.`, `Building at ${Math.round(100 * E.retoolFactor(s))}% speed, the cost of a launch.`],
     'short-computers': [`Short of computers: ${gap(f.demand - f.capacity, 'buyer', 'buyers')} a second ${f.demand - f.capacity < 1.5 ? 'goes' : 'go'} home.`,
       E.modelAge(s) < 60 && n > 1 ? 'The launch rush will fade.' : factories ? 'Open a factory.' : 'Set up a workbench.'],
     'short-buyers': [`Short of buyers: ${gap(f.capacity - f.demand, 'computer', 'computers')} a second not made.`,
@@ -616,6 +618,7 @@ function renderModels(s) {
     even: ['Making and selling are even.', ''],
   }[shown];
   set($('verdict-bold'), bold); set($('verdict-fix'), fix);
+  toggle($('supply-verdict'), 'switching', shown === 'switch');
 
   // Next model
   const phases = { start: 'Just started', fast: 'Improving fast', slowing: 'Slowing down' };

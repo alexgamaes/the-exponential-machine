@@ -420,7 +420,7 @@ body.era-1971 .card, body.era-1971 .buy-btn:not(.main-btn) { border-radius: 4px;
 /* Stage 3: the supply line, the buyers chart and the two launch rows. Every line keeps its height, so nothing moves. */
 .title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 1rem; }
 .model-tag { font-family: var(--font-num); font-weight: 400; font-size: 1rem; letter-spacing: 0; }
-.chart { position: relative; height: 3rem; margin: 0.4rem 0 0.4rem; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.chart { position: relative; height: 3rem; margin: 0.3rem 0 0.3rem; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .chart svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .chart .bar { fill: var(--accent); }
 .chart .bar-away { fill: var(--surface); stroke: var(--accent); stroke-width: 1; }
@@ -429,8 +429,12 @@ body.era-1971 .card, body.era-1971 .buy-btn:not(.main-btn) { border-radius: 4px;
 .chart-max { position: absolute; top: 0; left: 0.3rem; z-index: 1; font-size: 0.75rem; font-family: var(--font-num); color: var(--muted); background: var(--surface); padding: 0 0.2rem; }
 .chart-capline { position: absolute; right: 0.2rem; font-size: 0.8rem; font-weight: 700; line-height: 1.3; padding: 0 0.2rem; background: var(--surface); }
 #supply-nums { margin: 0; min-height: 1.5em; }
-#supply-verdict { margin: 0 0 0.5rem; min-height: 3em; }
-.lab { border-top: 1px dashed var(--soft-border); padding-top: 0.5rem; margin-top: 0.5rem; }
+/* The verdict sits in a box that is always there (no jump); while the factories switch over it turns solid accent. */
+#supply-verdict { position: relative; box-sizing: border-box; margin: 0.1rem -0.5rem 0.25rem; padding: 0.15rem 0.5rem 0.25rem; min-height: calc(3em + 0.4rem); }
+#supply-verdict.switching { background: var(--accent); color: var(--accent-text); }
+.retool-fill { display: none; position: absolute; left: 0; bottom: 0; height: 4px; background: var(--accent-text); opacity: 0.7; }
+#supply-verdict.switching .retool-fill { display: block; }
+.lab { border-top: 1px dashed var(--soft-border); padding-top: 0.45rem; margin-top: 0.45rem; }
 .lab-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 1rem; margin: 0 0 0.35rem; }
 .lab-head span { color: var(--muted); }
 .lab-bar { height: 0.7rem; border: 1px solid var(--border); background: var(--bar-bg); }
@@ -450,7 +454,7 @@ body.era-1971 .card, body.era-1971 .buy-btn:not(.main-btn) { border-radius: 4px;
 .series-grid .on-sale { font-weight: 700; }
 @media (max-width: 40rem) {
   .series-grid .range { display: none; }
-  #supply-verdict { min-height: 4.5em; }
+  #supply-verdict { min-height: calc(4.5em + 0.4rem); }
   #next-note { min-height: 4.5em; }
   #series-note { min-height: 6em; }
 }

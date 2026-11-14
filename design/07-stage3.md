@@ -154,3 +154,6 @@ The player: "no penalty for releasing a model right when it's available… it's 
   no programmers +19–37%. All 12 smart runs 12.7–13.1 min, quiet ≤ 30 s, end 2.0–2.6×10¹². Lazy runs (never launch, no
   programmers) take 19.6–23.7 min; their limits are widened (25 min, 75 s) so `npm test` checks they still finish.
 - Goal reward ×1.6. Home beats 100 / 1,000 / 10,000 / 25,000 / 40,000. Save version 6 (a v5 save becomes Series 1).
+- Switching over (Nov 14, player: "I could barely see this text"): while the factories retool, the supply line turns into
+  a solid accent band with a thin bar showing building speed coming back (25% → 100%) and "Building at N% speed". The
+  band's box is always there, so nothing moves when it appears.
