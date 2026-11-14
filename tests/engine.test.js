@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as E from '../src/engine.js';
 import { STAGE1 } from '../src/data/stage1.js';
+import { STAGE3 } from '../src/data/stage3.js';
 
 test('starts with the stage divider and one log line, nothing revealed, the goal visible', () => {
   const s = E.createState();
@@ -241,10 +242,11 @@ test('mainframes are paid for with money; selling stops after the goal', () => {
 
 // ---------- housekeeping review additions ----------
 test('finishing the last built stage shows "to be continued", and the save stays there', () => {
-  const s = E.startAtStage(2);
-  s.lifetime = s.stageStart.lifetime + STAGE2.goal.lifetime;
+  const last = Math.max(...Object.keys(E.STAGES).map(Number));
+  const s = E.startAtStage(last);
+  s.lifetime = s.stageStart.lifetime + E.STAGES[last].goal.lifetime;
   E.buyGoal(s);
-  s.ops = 1e15;
+  s.ops = 1e18;
   while (E.currentFinale(s)) E.buyFinale(s);
   for (let i = 0; i < 1000 && s.phase === 'ending'; i++) E.tick(s, 0.5);
   const rate = E.getRate(s);
@@ -254,7 +256,7 @@ test('finishing the last built stage shows "to be continued", and the save stays
   assert.equal(E.currentGoal(s), null);
   const t = E.deserialize(E.serialize(s));
   assert.equal(t.phase, 'next');
-  assert.equal(t.stage, 2);
+  assert.equal(t.stage, last);
 });
 
 test('money keeps coming in while away, capped by demand', () => {
@@ -285,13 +287,80 @@ test('every card says what its effect really does', () => {
     if (e.type === 'costGrowth') return text.includes(`${Math.round((e.value - 1) * 100)}%`);
     if (e.type === 'clickPct') return text.includes(`${Math.round(e.value * 100)}%`);
     if (e.type === 'clickMul') return /2 guesses|twice/.test(text);
+    if (e.type === 'demandMul') return text.includes(`${e.value}× more buyers`);
     return true; // unlockProducer, synergy: checked by hand
   };
-  for (const st of [STAGE1, STAGE2]) {
+  for (const st of [STAGE1, STAGE2, STAGE3]) {
     for (const u of st.upgrades) {
       if (u.effect.type === 'choice') for (const o of u.effect.options) assert.ok(says(o.text, o.effect), `${u.id}/${o.id}: ${o.text}`);
       else assert.ok(says(u.text, u.effect), `${u.id}: ${u.text}`);
     }
     assert.ok(says(st.goal.text, st.goal.effect), st.goal.id);
   }
+});
+
+// ---------- Stage 3: selling computers ----------
+function stage3() { return E.startAtStage(3); }
+
+test('Stage 3 starts with savings, not Stage 2 money, and the default price', () => {
+  const s = stage3();
+  assert.equal(s.stage, 3);
+  assert.equal(s.dollars, STAGE3.startDollars);
+  assert.equal(s.price, STAGE3.market.defaultPrice);
+  assert.equal(s.homes, 0);
+  assert.equal(E.getRate(s), s.legacyRate);       // workbenches make computers, not speed
+});
+
+test('computers sold go into homes, add speed and earn money; capped by what you make', () => {
+  const s = stage3();
+  assert.ok(E.buyProducer(s, 'workbench'));
+  const r0 = E.getRate(s);
+  E.tick(s, 10);
+  assert.ok(Math.abs(s.homes - 10) < 1e-6, 'one workbench, 10 s: 10 computers (demand is higher)');
+  assert.ok(E.getRate(s) > r0);
+  assert.ok(Math.abs(s.dollars - (STAGE3.startDollars - 1000 + 10 * s.price)) < 1e-6);
+});
+
+test('cheap sells more, dear earns more per sale; offices barely care about price', () => {
+  const s = stage3();
+  for (const id of ['clubs', 'offices']) s.beats[id] = s.time;
+  const cheap = E.demandAt(s, 299), dear = E.demandAt(s, 2499);
+  assert.ok(cheap > dear);
+  delete s.beats.clubs; delete s.beats.hobbyists;
+  const officeCheap = E.demandAt(s, 299), officeDear = E.demandAt(s, 2499);
+  assert.ok(officeCheap / officeDear < 1.15, 'offices pay what it costs');
+});
+
+test('the price only takes the four listed values; selling stops at the goal', () => {
+  const s = stage3();
+  assert.equal(E.setPrice(s, 1000), false);
+  assert.equal(E.setMarket(s, 599), true);
+  assert.equal(s.price, 599);
+  E.buyProducer(s, 'workbench');
+  s.lifetime = s.stageStart.lifetime + STAGE3.goal.lifetime;
+  E.buyGoal(s);
+  const h = s.homes;
+  E.tick(s, 10);
+  assert.equal(s.homes, h);
+});
+
+test('homes fold into the legacy at the handover, and a Stage 3 save round-trips', () => {
+  const s = stage3();
+  E.buyProducer(s, 'workbench'); E.tick(s, 30);
+  const t = E.deserialize(E.serialize(s));
+  assert.equal(t.homes, s.homes);
+  assert.equal(t.price, s.price);
+  assert.equal(E.getRate(t), E.getRate(s));
+});
+
+test('Stage 3 data: plain texts, log lines, unique ids, cards in date order', () => {
+  const ids = new Set();
+  let last = '';
+  for (const u of STAGE3.upgrades) {
+    assert.ok(u.text && u.log && u.name && u.date, u.id);
+    assert.ok(!ids.has(u.id)); ids.add(u.id);
+    assert.ok(u.date >= last, `${u.id} is dated before the card above it`); last = u.date;
+  }
+  assert.ok(STAGE3.goal.date >= last);
+  assert.ok(STAGE3.finale.every(f => f.date >= STAGE3.goal.date));
 });

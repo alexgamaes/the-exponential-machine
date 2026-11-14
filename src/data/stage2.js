@@ -40,6 +40,9 @@ export const STAGE2 = {
   // Selling computer time: a share of your speed goes to customers for dollars. Mainframes cost dollars.
   // Each customer adds demand (operations per second they will pay for) and arrives with a ledger line.
   market: {
+    title: 'Sell computer time',
+    intro: 'Customers pay for part of your computer time. Money buys mainframes and some ideas.',
+    label: 'Sell',
     reveal: { upgrade: 'magneticTape' },
     price: 0.1,                       // dollars per operation sold
     levels: [0, 0.25, 0.5, 0.75],

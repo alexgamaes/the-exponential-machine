@@ -2,7 +2,7 @@
 
 This is the single source of truth. It merges 01 (historian), 02 (plot), 03 (UX) and 04 (systems).
 If this file conflicts with one of those, this file wins. The proposals stay as background reference.
-Status: Stages 1 and 2 are built and playable. Stage 2's design is `06-stage2.md`.
+Status: Stages 1–3 are built and playable. Stage 2's design is `06-stage2.md`, Stage 3's is `07-stage3.md`.
 
 ---
 
@@ -41,14 +41,16 @@ that number climb and to make you *feel* it climb.
 |---|---|---|---|---|---|
 | 1 | 1939–45 | Codebreaker | Clerks → code-breaking machines | Build Colossus | 2–3×10⁴ |
 | 2 | 1946–71 | Director of a computing lab | Computers → mainframes | Build a computer for the Moon | 2–3×10⁷ |
-| 3 | 1971–84 | Garage founder | Hobby kits → home computers | Sell a computer to everyone | 10⁸ |
-| 4 | 1984–95 | Software company CEO | PCs on desks → office networks | Go online (the web) | 10¹¹ |
+| 3 | 1971–84 | Garage founder | Workbenches → factories (computers sold into homes) | Put a computer in every home | 2×10¹² |
+| 4 | 1984–95 | Software company CEO | PCs on desks → office networks | Go online (the web) | ~10¹⁶ (to re-plan) |
 | 5 | 1995–2001 | Investor, Silicon Valley | Startups → server farms | Survive the crash | 10¹³ |
 | 6 | 2001–12 | Chief of infrastructure, web giant | Server racks → data centres | Recognise a cat (AlexNet) | 10¹⁶ |
 | 7 | 2012–22 | Research director, AI lab | GPU clusters → TPU pods | Ship a model the world talks to | 10¹⁸ |
 | 8 | 2022–~2030 | Owner of a frontier AI lab | Training clusters → gigawatt campuses | A model that does research better than you | 10²¹ |
 | 9 | 2030s (fiction, "Projected") | Steward of the first self-improving AI | Self-built chips → automated fabs | Leave Earth | 10²⁶ |
 | 10 | far future (fiction) | The machine itself | Swarms around the Sun → matter arranged for thought | The last computation | 10⁵⁰ |
+
+*End rates for Stages 4–10 are the original draft. Stage 3 grows ×7×10⁴ (one doubling every ~45 s), so the later targets must move up; each stage is re-planned before it is built.*
 
 Rough lengths: Stage 1 ≈ 10 min (a requirement), later stages 12–20 min. Total ≈ 2.5 h.
 The doubling time shrinks every stage (50 s → ~15 s), so the whole game speeds up, not just each stage.

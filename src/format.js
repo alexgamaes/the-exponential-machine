@@ -54,6 +54,7 @@ export function fmtApprox(sec) {
   if (sec < 60) return `${Math.round(sec)} s`;
   if (sec < 600) { const t = Math.round(sec / 10) * 10; const m = Math.floor(t / 60), s = t % 60; return s ? `${m} min ${s} s` : `${m} min`; }
   if (sec < 3600) return `${Math.round(sec / 60)} min`;
+  if (sec >= 2 * 24 * 3600) return `${Math.round(sec / 86400)} days`;
   const t = Math.round(sec / 600) * 600; const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
   return m ? `${h} h ${m} min` : `${h} h`;
 }

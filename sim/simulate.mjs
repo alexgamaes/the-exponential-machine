@@ -6,6 +6,7 @@
 //   node sim/simulate.mjs --config '{"revealGapSec":12}'                    # override CONFIG
 //   node sim/simulate.mjs --stage 2 --legacy 19000 --carry 200000           # start at Stage 2 alone
 //   node sim/simulate.mjs --sell 0.25                                       # never change how much time is sold
+//   node sim/simulate.mjs --price 1299                                      # never change the price tag (Stage 3)
 // By default every run plays all built stages in a row (Stage 1 -> 2 ...) with the same state.
 //
 // Checks per run:
@@ -37,6 +38,7 @@ const PROFILES = {
 const WINDOWS = {
   1: { holder: [6, 14, 45], greedy: [8, 16, 45], active: [7, 13, 45], average: [7, 13, 45], casual: [8, 15, 50], idle: [8, 30, 120] },
   2: { holder: [9, 16, 45], greedy: [9, 18, 45], active: [10, 16, 45], average: [10, 16, 45], casual: [10, 16, 50], idle: [10, 20, 50] },
+  3: { holder: [10, 15, 45], greedy: [10, 17, 45], active: [10, 15, 45], average: [10, 15, 45], casual: [10, 16, 50], idle: [10, 18, 50] },
 };
 const CHOICES = ['machines', 'people'];
 
@@ -113,7 +115,8 @@ function playStage(s, profileName, choice, verbose) {
       const eff = E.effectiveRate(s);
       const cps = clicksAt(prof.clicks, T());
       snaps.push({ min: Math.round(T() / 60), rate, click: E.getClickValue(s), clickShare: cps * E.getClickValue(s) / rate, cps, owned: Object.values(s.producers).join('/'),
-        total: E.stageTotal(s), legacyShare: legacy / rate, task: st.task.size / Math.max(eff, 1e-9) });
+        total: E.stageTotal(s), legacyShare: legacy / rate, task: st.task.size / Math.max(eff, 1e-9),
+        market: E.marketKind(s) === 'price' ? (() => { const f = E.priceFlow(s); return `   $${s.price}  make ${fmt(f.capacity)}/s  buyers ${fmt(f.demand)}/s  homes ${fmt(s.homes)}  $${fmt(s.dollars)}`; })() : '' });
     }
   }
 
@@ -142,7 +145,7 @@ function playStage(s, profileName, choice, verbose) {
     console.log(`\n=== Stage ${s.stage} · ${profileName} / ${choice} · legacy ${fmt(legacy)} ===`);
     for (const [t, k, x] of events) if (k !== 'buy-producer') console.log(`${fmtT(t)}  ${k.padEnd(12)} ${x}`);
     console.log('\nmin   speed/s     click  clicks/s  clicks add   owned   stage total   legacy share   task');
-    for (const p of snaps) console.log(`${String(p.min).padStart(3)} ${fmt(p.rate).padStart(9)} ${fmt(p.click).padStart(9)} ${p.cps.toFixed(1).padStart(8)} ${((p.clickShare * 100).toFixed(1) + '%').padStart(11)} ${p.owned.padStart(7)} ${fmt(p.total).padStart(13)}   ${(p.legacyShare * 100).toFixed(0).padStart(11)}%   ${fmtDur(p.task)}`);
+    for (const p of snaps) console.log(`${String(p.min).padStart(3)} ${fmt(p.rate).padStart(9)} ${fmt(p.click).padStart(9)} ${p.cps.toFixed(1).padStart(8)} ${((p.clickShare * 100).toFixed(1) + '%').padStart(11)} ${p.owned.padStart(7)} ${fmt(p.total).padStart(13)}   ${(p.legacyShare * 100).toFixed(0).padStart(11)}%   ${fmtDur(p.task)}${p.market}`);
   }
 
   return { stage: s.stage, profile: profileName, choice, finished, mins, maxGap, clump, legacy,
@@ -153,6 +156,7 @@ function playStage(s, profileName, choice, verbose) {
 // --sell 0.25 keeps a fixed share (an idle player who never touches the setting).
 function chooseSell(s) {
   if (!E.sellOpen(s)) return;
+  if (E.marketKind(s) === 'price') { choosePrice(s); return; }
   if (sellArg !== 'smart') { E.setSell(s, Number(sellArg)); return; }
   const st = E.stageData(s);
   const open = st.upgrades.filter(u => s.revealed[u.id] !== undefined && !(u.id in s.bought));
@@ -173,6 +177,27 @@ function chooseSell(s) {
   E.setSell(s, best);
 }
 
+// Stage 3: the price tag. 'smart' (default) scores each price: a computer sold is worth its operations over the
+// next minute; a dollar is worth the capacity it buys (the best producer per dollar), run for 30 s.
+// --price 1299 keeps one price forever (a player who never touches it).
+function choosePrice(s) {
+  if (priceArg !== 'smart') { E.setPrice(s, Number(priceArg)); return; }
+  const st = E.stageData(s);
+  const vHome = E.homeOutput(s) * horizon[0];
+  let capPerUsd = 0;
+  for (const p of st.producers) if (p.makes && E.producerUnlocked(s, p.id))
+    capPerUsd = Math.max(capPerUsd, E.producerOutput(s, p.id) / E.producerCost(s, p.id));
+  // Money only helps if more capacity would sell: when you already make more than people want at the
+  // cheapest price, a dollar buys nothing useful.
+  const cap = E.capacity(s);
+  const short = cap < E.demandAt(s, Math.min(...st.market.prices));
+  const vUsd = capPerUsd * horizon[1] * vHome * (short ? 1 : 0.05);
+  const score = (P) => { const f = E.priceFlow(s, P); return f.sold * vHome + f.dollarsPerSec * vUsd; };
+  let best = s.price, bestV = score(s.price);
+  for (const P of st.market.prices) { const v = score(P); if (v > bestV * 1.05) { bestV = v; best = P; } }
+  E.setPrice(s, best);
+}
+
 function decide(s, choice, ev, greedy = false) {
   const st = E.stageData(s);
   chooseSell(s);
@@ -188,7 +213,9 @@ function decide(s, choice, ev, greedy = false) {
     }
     // producers paid with money: buy whenever affordable (nothing else competes for dollars except dollar cards)
     const moneyOpen = st.upgrades.some(u => u.currency === 'dollars' && s.revealed[u.id] !== undefined && !(u.id in s.bought));
-    const mp = st.producers.find(p => p.currency === 'dollars' && E.producerUnlocked(s, p.id));
+    const mps = st.producers.filter(p => p.currency === 'dollars' && E.producerUnlocked(s, p.id));
+    const mp = mps.length ? mps.reduce((a, b) =>
+      E.producerOutput(s, a.id) / E.producerCost(s, a.id) >= E.producerOutput(s, b.id) / E.producerCost(s, b.id) ? a : b) : null;
     if (mp && !moneyOpen && E.buyProducer(s, mp.id)) { ev('buy-producer', mp.id); continue; }
     // best producer by output per cost
     const opts = st.producers.filter(p => p.currency !== 'dollars' && E.producerUnlocked(s, p.id));
@@ -223,6 +250,8 @@ const fromStage = Number(arg('--stage') || 1);
 const legacyArg = arg('--legacy') !== undefined ? Number(arg('--legacy')) : undefined;
 const carryArg = arg('--carry') !== undefined ? Number(arg('--carry')) : undefined;
 const sellArg = arg('--sell') || 'smart';
+const priceArg = arg('--price') || 'smart';
+const horizon = (arg('--horizon') || '60,30').split(',').map(Number); // price bot: seconds a home / a dollar is valued over
 if (arg('--config')) Object.assign(CONFIG, JSON.parse(arg('--config')));
 // --data '{"computer":{"growth":1.2}}' patches producers/upgrades/goal/finale by id (any built stage)
 if (arg('--data')) {
@@ -234,6 +263,15 @@ if (arg('--data')) {
     }
     if (!item) throw new Error('unknown id ' + id);
     Object.assign(item, patch);
+  }
+}
+// --market '{"elasticity":0.7}' patches the price market (Stage 3); customers by id: '{"customers":{"offices":{"demand":900}}}'
+if (arg('--market')) {
+  const patch = JSON.parse(arg('--market'));
+  for (const st of Object.values(E.STAGES)) if (st.market?.kind === 'price') {
+    const { customers, ...rest } = patch;
+    Object.assign(st.market, rest);
+    for (const [id, c] of Object.entries(customers || {})) Object.assign(st.market.customers.find(x => x.id === id), c);
   }
 }
 const verbose = args.includes('--verbose');

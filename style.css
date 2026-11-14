@@ -366,6 +366,45 @@ body.era-1946 .card:not(.locked)::before {
   background: linear-gradient(135deg, var(--surface) 0 calc(50% - 1px), var(--border) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
 }
 
+/* ---------- era 1971: beige plastic case (light), amber terminal (dark) ---------- */
+body.era-1971 {
+  --bg: #ece6d6; --surface: #f8f4ea; --bar-bg: #d8cfb8;
+  --text: #000000; --muted: #2b2618; --border: #000000; --soft-border: #6b6250;
+  --accent: #8a4600; --accent-text: #ffffff;
+  --ok: #1d5c2a;
+  --k-balance: #9b1c1c; --k-lifetime: #1f3f8f; --k-owned: #7f4500; --k-clicks: #5b2a86; --k-ready: #1d5c2a;
+  --k-on: #ffffff; --hatch: rgb(255 255 255 / 0.35);
+  --font-era: 'Space Mono', 'IBM Plex Mono', monospace;
+  --stripe-1: #e0a030; --stripe-2: #c8641e; --stripe-3: #7a3d12;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body.era-1971 {
+    --bg: #121410; --surface: #1c1f18; --bar-bg: #2c3026;
+    --text: #f0e9d6; --muted: #d4ccb4; --border: #f0e9d6; --soft-border: #8a8472;
+    --accent: #e8b04a; --accent-text: #121410;
+    --ok: #8fd19e;
+    --k-balance: #ff9180; --k-lifetime: #8fb4ff; --k-owned: #f2b45a; --k-clicks: #c9a2f0; --k-ready: #8fd19e;
+    --k-on: #121410; --hatch: rgb(0 0 0 / 0.35);
+    --stripe-1: #e8b04a; --stripe-2: #d9782e; --stripe-3: #9a5a2a;
+  }
+}
+:root[data-theme="dark"] body.era-1971 {
+    --bg: #121410; --surface: #1c1f18; --bar-bg: #2c3026;
+    --text: #f0e9d6; --muted: #d4ccb4; --border: #f0e9d6; --soft-border: #8a8472;
+    --accent: #e8b04a; --accent-text: #121410;
+    --ok: #8fd19e;
+    --k-balance: #ff9180; --k-lifetime: #8fb4ff; --k-owned: #f2b45a; --k-clicks: #c9a2f0; --k-ready: #8fd19e;
+    --k-on: #121410; --hatch: rgb(0 0 0 / 0.35);
+    --stripe-1: #e8b04a; --stripe-2: #d9782e; --stripe-3: #9a5a2a;
+}
+body.era-1971 h2 { font-weight: 700; letter-spacing: 0.02em; }
+/* the case stripe under the header: decoration only, no motion */
+body.era-1971 #era { border-bottom: 0; position: relative; padding-bottom: calc(0.75rem + 6px); }
+body.era-1971 #era::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 6px;
+  background: linear-gradient(var(--stripe-1) 0 2px, var(--stripe-2) 2px 4px, var(--stripe-3) 4px 6px); }
+body.era-1971 .card, body.era-1971 .buy-btn:not(.main-btn) { border-radius: 4px; }
+#sell-homes { font-weight: 700; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

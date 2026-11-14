@@ -1,7 +1,7 @@
-# Stage 3 — The Garage (Nov 1971 → Jan 1984): merged design (DRAFT, for the player's approval)
+# Stage 3 — The Garage (Nov 1971 → Jan 1984): merged design
 
 Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
-decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. Nothing is built yet.
+decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Approved and built** (`src/data/stage3.js`); §8 records what changed while building.
 
 ## 1. The stage in one paragraph
 You are the Bletchley codebreaker, now about 55. You leave the computing division with a pension, the pencil and the
@@ -94,3 +94,18 @@ Two cards cost money (the floppy disk, the price war), the rest operations. Line
 - Card ETAs run 10–20% pessimistic because speed grows between purchases. Acceptable, or estimate from the growth.
 - Three numbers in the panel is the limit; anything more goes to the ledger.
 - "Computers in other people's homes count as yours" needs one plain ledger line at the first sale.
+
+## 8. As built (Nov 2026)
+- **The price decision was too soft** in the prototype (a fixed price only 5–8% behind). Two changes fixed most of it:
+  - **Each market has its own price sensitivity** (`elasticity` per customer): hobbyists 1.2, clubs 1.2, families 1.3 count every
+    dollar; shops 0.6, radio shops 0.8; accountants 0.1 and offices 0.05 pay what it costs. Word of mouth 0.8.
+    So the right price depends on who is buying: cheap in the garage, dearer once offices and accountants arrive.
+  - **Money matters more:** factories cost $500,000 and each costs 6% more than the last (was $50,000, 15%); workbenches 30% (was 25%).
+- Sim, average player: smart pricing 11.9–12.1 min · never touching $1,299 13–14 min · best fixed price ($599) 12.5–13 min
+  (3–9% slower) · always $299 15–16 min · always $2,499 16–18 min. All 6 profiles × 2 choices pass, quiet ≤ 31 s, end speed ~2–2.4×10¹².
+- `npm test`: the second sim run is a player who never touches either market (`--sell 0.25 --price 1299`). New flags: `--price`,
+  `--market` (patch the price market), `--horizon` (the price bot's valuation).
+- Choice ids: Open = `people`, Closed = `machines` (the sim's `--choice` covers all stages). Finale costs 3×10¹³ and 6×10¹³.
+- The Cray-1 line waits for 1976. The speedometer says "N% of a Cray-1" until you are faster than one, and long times read in days.
+- Engine: `homes`, `capacity`, `demandAt`, `priceFlow`, `setPrice`/`setMarket`, `moneyRate`, conditions `homes` and `afterGoal`,
+  effect `demandMul`, `startDollars`. Save version 4. The market panel is built from stage data (Stage 2 and 3 share it).

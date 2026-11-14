@@ -106,7 +106,7 @@ document.addEventListener('click', (e) => {
       window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       mainBtn.focus({ preventScroll: true });
       break;
-    case 'sell': E.setSell(s, Number(btn.dataset.value)); break;
+    case 'sell': E.setMarket(s, Number(btn.dataset.value)); break;
     case 'log-top': document.getElementById('log').scrollTop = 0; break;
     case 'dev-stage':
       s = E.startAtStage(Number(btn.dataset.stage));

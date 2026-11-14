@@ -45,6 +45,7 @@ function resetStage(s, st) {
   for (const c of [...document.body.classList]) if (c.startsWith('era-')) document.body.classList.remove(c);
   document.body.classList.add('era-' + st.era);
   document.body.classList.toggle('has-market', !!st.market); // decided once per stage, so nothing moves mid-stage
+  buildMarket(st);
   if (!first) {
     pulse(document.body, 'stage-enter', 2600);
     announce(`${fmtDate(s.date)}. You are now ${st.role}. Your speed carries over.`);
@@ -86,8 +87,10 @@ export function render(s) {
   // Team line: team speed only (no clicks), rounded, so it changes only when you buy something.
   show($('team'), rate > 0);
   if (rate > 0) {
-    const n = sig2(rate / st.compare.rate);
-    const like = n === 1 ? st.compare.one : st.compare.many.replace('{n}', fmt(n));
+    const ratio = rate / st.compare.rate, n = sig2(ratio);
+    // slower than one of them: say what share ("20% of a Cray-1")
+    const like = ratio < 0.95 && st.compare.part ? st.compare.part.replace('{n}', Math.max(1, Math.round(ratio * 100)))
+      : n === 1 ? st.compare.one : st.compare.many.replace('{n}', fmt(n));
     const team = `${st.text.team}: as fast as ${like} · ` +
       `${st.task.label.toLowerCase()} ${st.task.size / rate < 1 ? 'in under a second' : 'in about ' + fmtApprox(st.task.size / rate)}`;
     set($('team'), team);
@@ -135,7 +138,7 @@ export function render(s) {
     const n = s.producers[p.id];
     const cost = E.producerCost(s, p.id);
     set(el.owned, `${n} owned`);
-    const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace(/^Each checks 1 guesses/, 'Each checks 1 guess');
+    const each = p.each.replace('{out}', fmt(out, 1)).replace('{unit}', unit).replace(/^Each checks 1 guesses/, 'Each checks 1 guess').replace(/^Each builds 1 computers/, 'Each builds 1 computer');
     set(el.desc, each + (n ? ` Together: ${fmt(out * n, 1)} per second.` : ''));
     set(el.cost, price(p, Math.ceil(cost), unit)); toggle(el.cost, 'dollars', p.currency === 'dollars');
     const can = s.phase === 'playing' && E.wallet(s, p) >= cost;
@@ -157,7 +160,7 @@ export function render(s) {
     toggle(el.root, 'affordable', can);
     toggle(el.root, 'unaffordable', !can);
     fill(el.progress, have / u.cost);
-    const income = u.currency === 'dollars' ? E.sellFlow(s).dollarsPerSec : rate * (1 - E.sellShare(s)) + (eff - rate); // clicks are never sold
+    const income = u.currency === 'dollars' ? E.moneyRate(s) : rate * (1 - E.sellShare(s)) + (eff - rate); // clicks are never sold
     set(el.cost, price(u, u.cost, unit) + (can ? '' : cardEta(u.id, u.cost - have, income))); toggle(el.cost, 'dollars', u.currency === 'dollars');
     for (const b of el.optionBtns) if (b.disabled === can) b.disabled = !can;
   }
@@ -405,22 +408,40 @@ const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 const price = (item, n, unit) => item.currency === 'dollars' ? money(n) : `${fmt(n)} ${unit}`;
 const money = (n) => '$' + fmt(n);
 
+// The market panel's title, text and buttons come from the stage (Stage 2: share sold; Stage 3: price tag).
+function buildMarket(st) {
+  const m = st.market;
+  if (!m) return;
+  set($('market-title'), m.title);
+  set($('market-intro'), m.intro);
+  const seg = $('market-seg');
+  seg.setAttribute('aria-label', m.kind === 'price' ? 'Price of your computer' : 'How much computer time to sell');
+  const values = m.kind === 'price' ? m.prices : m.levels;
+  seg.replaceChildren(h('span', { class: 'seg-label' }, m.label),
+    ...values.map(v => h('button', { 'data-action': 'sell', 'data-value': String(v) }, m.kind === 'price' ? money(v) : `${Math.round(v * 100)}%`)));
+  show($('sell-homes'), m.kind === 'price');
+}
+
 function renderMarket(s, unit) {
   const st = E.stageData(s);
   const open = E.sellOpen(s);
   show($('market'), open);
-  const moneyOn = !!st.market && (open || s.dollars > 0) && s.phase !== 'next';
+  const moneyOn = !!st.market && (open || s.dollars > 0 || !!st.startDollars) && s.phase !== 'next';
   show($('money'), moneyOn);
   toggle($('balances'), 'two', moneyOn);
   if (!st.market) return;
-  const flow = E.sellFlow(s);
+  const perSec = E.moneyRate(s);
   set($('money-text'), money(s.dollars));
-  set($('money-rate'), flow.dollarsPerSec > 0 ? `+${money(flow.dollarsPerSec)} per second` : '');
+  set($('money-rate'), perSec > 0 ? `+${money(sig2(perSec))} per second` : '');
   if (!open) return;
-  for (const b of $('market').querySelectorAll('[data-action="sell"]')) {
-    const on = Number(b.dataset.value) === s.sell;
+  const value = E.marketValue(s);
+  for (const b of $('market-seg').querySelectorAll('[data-action="sell"]')) {
+    const on = Number(b.dataset.value) === value;
     if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
   }
+  if (st.market.kind === 'price') { renderPriceMarket(s); return; }
+  set($('sell-forecast'), '');
+  const flow = E.sellFlow(s);
   const want = E.sellDemand(s);
   let status;
   if (s.sell === 0) status = `You sell nothing. Customers would pay for up to ${fmt(want)} ${unit} per second.`;
@@ -430,4 +451,22 @@ function renderMarket(s, unit) {
   set($('sell-status'), status);
   const names = E.customers(s).map(c => c.name).join(', ');
   set($('sell-customers'), 'Customers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.');
+}
+
+// Stage 3: what your price does, how many computers are in homes, and what holds you back.
+// Numbers are rounded to two significant digits, so the lines change only when something real changes.
+function renderPriceMarket(s) {
+  const f = E.priceFlow(s);
+  set($('sell-forecast'), `At ${money(s.price)}: about ${fmt(sig2(f.sold), 1)} sold a second, ${money(sig2(f.dollarsPerSec))} a second.`);
+  const wom = E.wordOfMouthShare(s) * f.sold;
+  set($('sell-homes'), `Computers in homes: ${fmt(Math.floor(s.homes))}` + (f.sold > 0 ? `  ·  +${fmt(sig2(f.sold), 1)} a second` : '') +
+    (wom >= 1 ? ` (${fmt(sig2(wom), 1)} from word of mouth)` : ''));
+  let status;
+  if (f.capacity <= 0) status = 'Set up a workbench to start making computers.';
+  else if (f.demand > f.capacity * 1.05) status = 'Buyers are waiting: make more computers, or raise the price.';
+  else if (f.capacity > f.demand * 1.05) status = 'Computers are piling up: lower the price, or wait for more buyers.';
+  else status = 'Making and selling are even.';
+  set($('sell-status'), status);
+  const names = E.customers(s).map(c => c.name).join(', ');
+  set($('sell-customers'), names ? 'Buyers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.' : '');
 }

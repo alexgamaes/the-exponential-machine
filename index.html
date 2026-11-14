@@ -11,7 +11,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%239b1c1c'/%3E%3Ctext x='8' y='12.5' font-size='12' text-anchor='middle' fill='white' font-family='monospace'%3Ee%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans:wght@500;600;700&family=IBM+Plex+Sans+Condensed:wght@700&family=Special+Elite&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans:wght@500;600;700&family=IBM+Plex+Sans+Condensed:wght@700&family=Space+Mono:wght@700&family=Special+Elite&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="era-1939">
@@ -75,12 +75,11 @@
         <p id="team-complete" class="muted-note" hidden></p>
       </section>
       <section id="market" class="panel" hidden>
-        <h2>Sell computer time</h2>
-        <p class="muted-note first">Customers pay for part of your computer time. Money buys mainframes and some ideas.</p>
-        <div class="seg" role="group" aria-label="How much computer time to sell">
-          <span class="seg-label">Sell</span>
-          <button data-action="sell" data-value="0">0%</button><button data-action="sell" data-value="0.25">25%</button><button data-action="sell" data-value="0.5">50%</button><button data-action="sell" data-value="0.75">75%</button>
-        </div>
+        <h2 id="market-title"></h2>
+        <p id="market-intro" class="muted-note first"></p>
+        <div id="market-seg" class="seg" role="group"></div>
+        <p id="sell-forecast"></p>
+        <p id="sell-homes" hidden></p>
         <p id="sell-status"></p>
         <p id="sell-customers" class="muted-note"></p>
       </section>

@@ -5,9 +5,10 @@ import { CONFIG } from './config.js';
 import { fmt } from './format.js';
 import { STAGE1 } from './data/stage1.js';
 import { STAGE2 } from './data/stage2.js';
+import { STAGE3 } from './data/stage3.js';
 
-export const STAGES = { 1: STAGE1, 2: STAGE2 };
-export const SAVE_VERSION = 3;
+export const STAGES = { 1: STAGE1, 2: STAGE2, 3: STAGE3 };
+export const SAVE_VERSION = 4;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
@@ -40,7 +41,10 @@ export function createState() {
     stageStart: { time: 0, lifetime: 0, clicks: 0 }, // conditions and the goal count from here
     hushUntil: 0,     // no reveals or story lines until then (a quiet moment after a heavy beat)
     dollars: 0,       // money from selling computer time (Stage 2 on)
-    sell: 0.25,       // share of computer time offered to customers
+    sell: 0.25,       // share of computer time offered to customers (Stage 2)
+    homes: 0,         // computers sold that keep running in people's homes (Stage 3)
+    price: 0,         // the price tag on your computer (Stage 3; 0 = no price market)
+    goalAt: null,     // when the stage goal was built
     _clickAcc: 0,
     _clickRate: 0,    // smoothed clicks per second (for the speedometer)
   };
@@ -53,7 +57,7 @@ export function createState() {
 
 function upgradeEffects(s) {
   const st = stageData(s);
-  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, mul: {}, growth: {}, unlocked: {} };
+  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, demandMul: 1, mul: {}, growth: {}, unlocked: {} };
   const apply = (e) => {
     switch (e.type) {
       case 'clickMul': fx.clickMul *= e.value; break;
@@ -63,6 +67,7 @@ function upgradeEffects(s) {
       case 'producerMul': fx.mul[e.target] = (fx.mul[e.target] || 1) * e.value; break;
       case 'costGrowth': fx.growth[e.target] = e.value; break;
       case 'priceMul': fx.priceMul *= e.value; break;
+      case 'demandMul': fx.demandMul *= e.value; break;
       case 'unlockProducer': fx.unlocked[e.target] = true; break;
     }
   };
@@ -96,10 +101,18 @@ export function producerCost(s, id, fx = upgradeEffects(s)) {
   return p.baseCost * Math.pow(g, s.producers[id]);
 }
 
+// Speed. Producers that make computers (Stage 3) add to capacity, not speed: the computers they make
+// run in other people's homes, and those count.
 export function getRate(s, fx = upgradeEffects(s)) {
   let r = s.legacyRate;
-  for (const p of stageData(s).producers) r += s.producers[p.id] * producerOutput(s, p.id, fx);
+  for (const p of stageData(s).producers) if (!p.makes) r += s.producers[p.id] * producerOutput(s, p.id, fx);
+  if (stageData(s).homes) r += s.homes * homeOutput(s, fx);
   return r;
+}
+// Operations per second from one computer in a home.
+export function homeOutput(s, fx = upgradeEffects(s)) {
+  const h = stageData(s).homes;
+  return h ? h.output * (fx.mul.home || 1) * fx.globalMul : 0;
 }
 
 export function getClickValue(s, fx = upgradeEffects(s)) {
@@ -148,6 +161,8 @@ function conditionMet(s, c) {
   if (c.lifetime !== undefined && stageTotal(s) < c.lifetime) return false;
   if (c.clicks !== undefined && stageClicks(s) < c.clicks) return false;
   if (c.rate !== undefined && getRate(s) < c.rate) return false;
+  if (c.homes !== undefined && s.homes < c.homes) return false;
+  if (c.afterGoal !== undefined && !(s.goalAt !== null && s.time >= s.goalAt + c.afterGoal)) return false;
   if (c.legacyTimes !== undefined && !(s.legacyRate > 0 && getRate(s) >= c.legacyTimes * s.legacyRate)) return false;
   if (c.upgrade !== undefined && !(c.upgrade in s.bought)) return false;
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) if ((s.producers[id] || 0) < n) return false;
@@ -168,6 +183,8 @@ export function conditionProgress(s, c) {
   if (c.clicks !== undefined && stageClicks(s) < c.clicks)
     return { kind: 'clicks', phrase: phrase(s, 'clicks', { n: fmtInt(c.clicks) }), unitLabel: 'by hand',
              have: stageClicks(s), need: c.clicks };
+  if (c.homes !== undefined && s.homes < c.homes)
+    return { kind: 'homes', phrase: `Get ${fmt(c.homes)} computers into homes`, unitLabel: '', have: s.homes, need: c.homes };
   if (c.owned) for (const [id, n] of Object.entries(c.owned)) {
     if ((s.producers[id] || 0) < n) {
       const p = st.producers.find(x => x.id === id);
@@ -199,12 +216,13 @@ export function sellOpen(s) {
   const m = stageData(s).market;
   return !!m && s.phase === 'playing' && conditionMet(s, m.reveal);
 }
-export function sellShare(s) { return sellOpen(s) ? s.sell : 0; }
+export function marketKind(s) { return stageData(s).market?.kind || 'sell'; }
+export function sellShare(s) { return sellOpen(s) && marketKind(s) === 'sell' ? s.sell : 0; }
 export function moneyPerOp(s, fx = upgradeEffects(s)) { return (stageData(s).market?.price || 0) * fx.priceMul; }
 // Operations per second that customers want: the sum of every customer who has arrived.
 export function sellDemand(s) {
   const m = stageData(s).market;
-  if (!m) return 0;
+  if (!m || m.kind === 'price') return 0;
   let d = 0;
   for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand;
   return d;
@@ -221,9 +239,56 @@ export function sellFlow(s, fx = upgradeEffects(s)) {
 }
 export function setSell(s, share) {
   const m = stageData(s).market;
-  if (!m || !m.levels.includes(share)) return false;
+  if (!m || m.kind === 'price' || !m.levels.includes(share)) return false;
   s.sell = share;
   return true;
+}
+
+// ---------- selling computers (Stage 3: a price tag) ----------
+// Workbenches and factories make computers; buyers take them at your price. Every computer sold
+// runs in someone's home and adds to your speed. Cheap sells more; dear earns more money per sale.
+// Owners tell friends: every computer in a home adds a little demand (word of mouth).
+export function capacity(s, fx = upgradeEffects(s)) {
+  let c = 0;
+  for (const p of stageData(s).producers) if (p.makes) c += s.producers[p.id] * producerOutput(s, p.id, fx);
+  return c;
+}
+// Buyers per second at price P: the markets that have opened, plus word of mouth, scaled by the price.
+export function demandAt(s, P, fx = upgradeEffects(s)) {
+  const m = stageData(s).market;
+  if (!m || m.kind !== 'price') return 0;
+  // Each market has its own price sensitivity: hobbyists count every dollar, offices pay what it costs.
+  const k = (e) => Math.pow(m.refPrice / P, e ?? m.elasticity);
+  let d = m.wordOfMouth * s.homes * k();
+  for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand * k(c.elasticity);
+  return d * fx.demandMul;
+}
+// The word-of-mouth share of demand (for the panel).
+export function wordOfMouthShare(s) {
+  const m = stageData(s).market;
+  if (!m || m.kind !== 'price') return 0;
+  const wom = m.wordOfMouth * s.homes;
+  let d = wom;
+  for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand;
+  return d > 0 ? wom / d : 0;
+}
+export function priceFlow(s, P = s.price, fx = upgradeEffects(s)) {
+  const cap = capacity(s, fx), demand = demandAt(s, P, fx);
+  const sold = sellOpen(s) ? Math.min(cap, demand) : 0;
+  return { capacity: cap, demand, sold, dollarsPerSec: sold * P * fx.priceMul };
+}
+export function setPrice(s, P) {
+  const m = stageData(s).market;
+  if (!m || m.kind !== 'price' || !m.prices.includes(P)) return false;
+  s.price = P;
+  return true;
+}
+// The market control, whatever its kind (Stage 2: share sold; Stage 3: price).
+export function setMarket(s, v) { return marketKind(s) === 'price' ? setPrice(s, v) : setSell(s, v); }
+export function marketValue(s) { return marketKind(s) === 'price' ? s.price : s.sell; }
+// Dollars per second right now, whatever the market.
+export function moneyRate(s, fx = upgradeEffects(s)) {
+  return marketKind(s) === 'price' ? priceFlow(s, s.price, fx).dollarsPerSec : sellFlow(s, fx).dollarsPerSec;
 }
 // Which balance an item is paid from.
 export function wallet(s, item) { return item.currency === 'dollars' ? s.dollars : s.ops; }
@@ -272,6 +337,7 @@ export function buyGoal(s) {
   const g = stageData(s).goal;
   addLog(s, g.log, g.date, 'milestone');
   s.goalDone = true;
+  s.goalAt = s.time;
   s.phase = 'finale';
   s.finaleIndex = 0;
   return true;
@@ -303,6 +369,7 @@ export function passLedger(s) {
   const rate = getRate(s);          // computed with the OLD stage's data
   const st = stageData(s);
   for (const p of st.producers) s.producers[p.id] = 0;
+  s.homes = 0;                      // computers in homes fold into the legacy too
   s.legacyRate = rate;              // (enterStage clears bought/choices/revealed; with no next stage they stay, so the role stays)
   if (STAGES[s.stage + 1]) enterStage(s, s.stage + 1, st.next);
   else {                            // the next stage is not built yet
@@ -336,7 +403,11 @@ export function enterStage(s, n, bridge = null) {
   s.producers = Object.fromEntries(st.producers.map(p => [p.id, 0]));
   s.bought = {}; s.choices = {}; s.revealed = {}; s.beats = {};
   s.lastRevealAt = -Infinity; s.hushUntil = 0;
-  s.goalDone = false; s.finaleIndex = 0; s.endingIndex = 0; s.endingAt = 0;
+  s.goalDone = false; s.goalAt = null; s.finaleIndex = 0; s.endingIndex = 0; s.endingAt = 0;
+  // Money does not cross stages (it belonged to the old job); a stage may start with some savings.
+  s.dollars = st.startDollars ?? 0;
+  s.homes = 0;
+  s.price = st.market?.kind === 'price' ? st.market.defaultPrice : 0;
   s.stageStart = { time: s.time, lifetime: s.lifetime, clicks: s.clicks };
   s.phase = 'playing';
   addLog(s, st.title, bridge?.date ?? null, 'stage');
@@ -356,6 +427,11 @@ export function tick(s, dt) {
   const sold = gain * sellShare(s);
   s.ops += gain - sold; s.lifetime += gain;
   if (sold > 0) s.dollars += Math.min(sold, sellDemand(s) * dt) * moneyPerOp(s, fx);
+  if (s.price && sellOpen(s)) {     // Stage 3: computers leave for homes, money comes in
+    const f = priceFlow(s, s.price, fx);
+    s.homes += f.sold * dt;
+    s.dollars += f.dollarsPerSec * dt;
+  }
 
   // smoothed click rate (time constant ~3 s)
   const k = Math.min(1, dt / 3);
@@ -481,6 +557,8 @@ export function deserialize(json) {
     s.hushUntil = 0;
     s.version = SAVE_VERSION;
   }
+  // v3 -> v4: homes and the price tag (Stage 3).
+  if (STAGES[s.stage].market?.kind === 'price' && !s.price) s.price = STAGES[s.stage].market.defaultPrice;
   // A save that finished the last built stage moves on once the next stage exists.
   if (s.phase === 'next' && STAGES[s.stage + 1]) enterStage(s, s.stage + 1);
   s.version = SAVE_VERSION;
