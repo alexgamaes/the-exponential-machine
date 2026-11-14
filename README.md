@@ -19,7 +19,7 @@ npm run sim -- --profile average --choice machines --verbose   # one run with a 
 npm run sim -- --data '{"clerk":{"growth":1.15}}'               # try a balance change
 npm run sim -- --config '{"revealGapSec":12}'                    # try an engine setting
 npm run sim -- --stage 2 --legacy 19000                          # play Stage 2 alone
-npm run sim -- --stage 3 --price 1299                            # Stage 3 alone, never changing the price
+npm run sim -- --stage 3 --launch never                          # Stage 3 alone, never launching a model
 npm run sim -- --sell 0.25                                       # a player who never changes how much time is sold
 ```
 The simulator plays the real engine (`src/engine.js`) through every built stage in a row,

@@ -8,7 +8,7 @@ import { STAGE2 } from './data/stage2.js';
 import { STAGE3 } from './data/stage3.js';
 
 export const STAGES = { 1: STAGE1, 2: STAGE2, 3: STAGE3 };
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export function stageData(s) { return STAGES[s.stage]; }
 
@@ -43,7 +43,10 @@ export function createState() {
     dollars: 0,       // money from selling computer time (Stage 2 on)
     sell: 0.25,       // share of computer time offered to customers (Stage 2)
     homes: 0,         // computers sold that keep running in people's homes (Stage 3)
-    price: 0,         // the price tag on your computer (Stage 3; 0 = no price market)
+    models: [],       // Stage 3: every model launched, [{ speed (× Model 1), homes (sold) }]; the last is on sale
+    modelAt: 0,       // when the model on sale was launched
+    sales: [],        // buyers a second for the model on sale, one sample every 2 s (the chart)
+    salesNext: 0,     // when the next sample is due
     goalAt: null,     // when the stage goal was built
     _clickAcc: 0,
     _clickRate: 0,    // smoothed clicks per second (for the speedometer)
@@ -57,7 +60,7 @@ export function createState() {
 
 function upgradeEffects(s) {
   const st = stageData(s);
-  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, demandMul: 1, mul: {}, growth: {}, unlocked: {} };
+  const fx = { clickMul: 1, clickPct: 0, globalMul: 1, synergy: 0, priceMul: 1, demandMul: 1, fadeMul: 1, labMax: 0, mul: {}, growth: {}, unlocked: {} };
   const apply = (e) => {
     switch (e.type) {
       case 'clickMul': fx.clickMul *= e.value; break;
@@ -68,6 +71,8 @@ function upgradeEffects(s) {
       case 'costGrowth': fx.growth[e.target] = e.value; break;
       case 'priceMul': fx.priceMul *= e.value; break;
       case 'demandMul': fx.demandMul *= e.value; break;
+      case 'fadeMul': fx.fadeMul *= e.value; break;
+      case 'labMax': fx.labMax += e.value; break;
       case 'unlockProducer': fx.unlocked[e.target] = true; break;
     }
   };
@@ -106,10 +111,16 @@ export function producerCost(s, id, fx = upgradeEffects(s)) {
 export function getRate(s, fx = upgradeEffects(s)) {
   let r = s.legacyRate;
   for (const p of stageData(s).producers) if (!p.makes) r += s.producers[p.id] * producerOutput(s, p.id, fx);
-  if (stageData(s).homes) r += s.homes * homeOutput(s, fx);
+  if (stageData(s).homes) r += homeWork(s) * homeOutput(s, fx);
   return r;
 }
-// Operations per second from one computer in a home.
+// Computers in homes, each weighted by its model's speed (Model 1 = 1).
+export function homeWork(s) {
+  let w = 0;
+  for (const m of s.models) w += m.homes * m.speed;
+  return w;
+}
+// Operations per second from one Model 1 in a home (a model N computer runs its model's speed × this).
 export function homeOutput(s, fx = upgradeEffects(s)) {
   const h = stageData(s).homes;
   return h ? h.output * (fx.mul.home || 1) * fx.globalMul : 0;
@@ -222,7 +233,7 @@ export function moneyPerOp(s, fx = upgradeEffects(s)) { return (stageData(s).mar
 // Operations per second that customers want: the sum of every customer who has arrived.
 export function sellDemand(s) {
   const m = stageData(s).market;
-  if (!m || m.kind === 'price') return 0;
+  if (!m || m.kind === 'models') return 0;
   let d = 0;
   for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand;
   return d;
@@ -239,56 +250,92 @@ export function sellFlow(s, fx = upgradeEffects(s)) {
 }
 export function setSell(s, share) {
   const m = stageData(s).market;
-  if (!m || m.kind === 'price' || !m.levels.includes(share)) return false;
+  if (!m || m.kind === 'models' || !m.levels.includes(share)) return false;
   s.sell = share;
   return true;
 }
 
-// ---------- selling computers (Stage 3: a price tag) ----------
-// Workbenches and factories make computers; buyers take them at your price. Every computer sold
-// runs in someone's home and adds to your speed. Cheap sells more; dear earns more money per sale.
-// Owners tell friends: every computer in a home adds a little demand (word of mouth).
+// ---------- launching models (Stage 3) ----------
+// Workbenches and factories make computers; buyers take the model on sale. Every computer sold keeps
+// running in someone's home at its model's speed. The lab keeps designing the next model: it gets better
+// fast, then slows down near the limit of the current chip. You choose when to launch it. Launching
+// starts a new model with fresh buyers; the old one stops selling. Owners tell friends (word of mouth).
 export function capacity(s, fx = upgradeEffects(s)) {
   let c = 0;
   for (const p of stageData(s).producers) if (p.makes) c += s.producers[p.id] * producerOutput(s, p.id, fx);
   return c;
 }
-// Buyers per second at price P: the markets that have opened, plus word of mouth, scaled by the price.
-export function demandAt(s, P, fx = upgradeEffects(s)) {
-  const m = stageData(s).market;
-  if (!m || m.kind !== 'price') return 0;
-  // Each market has its own price sensitivity: hobbyists count every dollar, offices pay what it costs.
-  const k = (e) => Math.pow(m.refPrice / P, e ?? m.elasticity);
-  let d = m.wordOfMouth * s.homes * k();
-  for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand * k(c.elasticity);
-  return d * fx.demandMul;
+const modelMarket = (s) => { const m = stageData(s).market; return m && m.kind === 'models' ? m : null; };
+export function modelOnSale(s) { return s.models.length; }
+export function modelAge(s) { return s.time - s.modelAt; }
+// The most the lab can make the next model, as a multiple of the model on sale.
+export function labLimit(s, fx = upgradeEffects(s)) { const m = modelMarket(s); return m ? m.labMax + fx.labMax : 1; }
+// How much faster the lab's next model is than the one on sale: an S-curve up to the limit.
+// A bigger leap takes longer to design (time × √(limit − 1)).
+export function labRatio(s, fx = upgradeEffects(s), age = modelAge(s)) {
+  const m = modelMarket(s);
+  if (!m) return 1;
+  const L = labLimit(s, fx);
+  const p = Math.max(0, age) / (m.labTime * Math.sqrt(L - 1));
+  const k = Math.pow(p, m.labShape);
+  return 1 + (L - 1) * k / (1 + k);
 }
-// The word-of-mouth share of demand (for the panel).
-export function wordOfMouthShare(s) {
-  const m = stageData(s).market;
-  if (!m || m.kind !== 'price') return 0;
-  const wom = m.wordOfMouth * s.homes;
-  let d = wom;
+// Where the lab is on its curve: 'start' · 'fast' · 'slowing' (the best time to launch has passed) · 'limit'.
+export function labPhase(s, fx = upgradeEffects(s)) {
+  const m = modelMarket(s), a = modelAge(s), L = labLimit(s, fx), r = labRatio(s, fx, a);
+  if (r >= 1 + 0.8 * (L - 1)) return 'limit';
+  if (r < m.minRatio) return 'start';
+  // The average gain per second, ln(ratio)/age, peaks at the best moment to launch.
+  return Math.log(labRatio(s, fx, a + 1)) / (a + 1) < Math.log(r) / a ? 'slowing' : 'fast';
+}
+// Buyers for the model on sale: many at launch, then fewer as everyone who wanted one has one.
+export function freshness(s, fx = upgradeEffects(s), age = modelAge(s)) {
+  const m = modelMarket(s);
+  return m.fadeFloor + (m.surge - m.fadeFloor) * Math.pow(0.5, age / (m.fadeHalf * fx.fadeMul));
+}
+// Buyers a second: the markets that have opened plus word of mouth, times how fresh the model is.
+export function modelDemand(s, fx = upgradeEffects(s), age = modelAge(s)) {
+  const m = modelMarket(s);
+  if (!m) return 0;
+  let d = m.wordOfMouth * s.homes;
   for (const c of m.customers) if (s.beats[c.id] !== undefined) d += c.demand;
-  return d > 0 ? wom / d : 0;
+  return d * fx.demandMul * freshness(s, fx, age);
 }
-export function priceFlow(s, P = s.price, fx = upgradeEffects(s)) {
-  const cap = capacity(s, fx), demand = demandAt(s, P, fx);
+export function modelFlow(s, fx = upgradeEffects(s)) {
+  const cap = capacity(s, fx), demand = modelDemand(s, fx);
   const sold = sellOpen(s) ? Math.min(cap, demand) : 0;
-  return { capacity: cap, demand, sold, dollarsPerSec: sold * P * fx.priceMul };
+  return { capacity: cap, demand, sold, dollarsPerSec: sold * (modelMarket(s)?.price || 0) * fx.priceMul };
 }
-export function setPrice(s, P) {
-  const m = stageData(s).market;
-  if (!m || m.kind !== 'price' || !m.prices.includes(P)) return false;
-  s.price = P;
+// Why the launch button is off, or null when you can launch.
+export function launchBlock(s, fx = upgradeEffects(s)) {
+  const m = modelMarket(s);
+  if (!m || s.phase !== 'playing' || !sellOpen(s)) return 'closed';
+  if (capacity(s, fx) <= 0) return 'workbench';
+  if (labRatio(s, fx) < m.minRatio) return 'lab';
+  return null;
+}
+export function canLaunch(s) { return launchBlock(s) === null; }
+export function launchModel(s, byEngineers = false) {
+  if (!canLaunch(s)) return false;
+  const m = modelMarket(s), r = labRatio(s);
+  const prev = s.models[s.models.length - 1];
+  s.models.push({ speed: prev.speed * r, homes: 0 });
+  s.modelAt = s.time; s.sales = []; s.salesNext = s.time;
+  const n = s.models.length;
+  const line = m.modelLines?.[n] || 'It is faster, and the shops want it.';
+  const who = byEngineers
+    ? (s.engineersShipped ? 'Your engineers ship' : 'Your engineers stop waiting for you and ship')
+    : 'You launch';
+  if (byEngineers) s.engineersShipped = true;
+  addLog(s, `${who} Model ${n}, ${fmtRatio(r)} as fast as Model ${n - 1}. ${line}`, null, 'model');
   return true;
 }
-// The market control, whatever its kind (Stage 2: share sold; Stage 3: price).
-export function setMarket(s, v) { return marketKind(s) === 'price' ? setPrice(s, v) : setSell(s, v); }
-export function marketValue(s) { return marketKind(s) === 'price' ? s.price : s.sell; }
+function fmtRatio(r) { return `${(Math.round(r * 10) / 10).toFixed(1)}×`; }
+export function setMarket(s, v) { return setSell(s, v); }
+export function marketValue(s) { return s.sell; }
 // Dollars per second right now, whatever the market.
 export function moneyRate(s, fx = upgradeEffects(s)) {
-  return marketKind(s) === 'price' ? priceFlow(s, s.price, fx).dollarsPerSec : sellFlow(s, fx).dollarsPerSec;
+  return marketKind(s) === 'models' ? modelFlow(s, fx).dollarsPerSec : sellFlow(s, fx).dollarsPerSec;
 }
 // Which balance an item is paid from.
 export function wallet(s, item) { return item.currency === 'dollars' ? s.dollars : s.ops; }
@@ -369,7 +416,7 @@ export function passLedger(s) {
   const rate = getRate(s);          // computed with the OLD stage's data
   const st = stageData(s);
   for (const p of st.producers) s.producers[p.id] = 0;
-  s.homes = 0;                      // computers in homes fold into the legacy too
+  s.homes = 0; s.models = [];       // computers in homes fold into the legacy too
   s.legacyRate = rate;              // (enterStage clears bought/choices/revealed; with no next stage they stay, so the role stays)
   if (STAGES[s.stage + 1]) enterStage(s, s.stage + 1, st.next);
   else {                            // the next stage is not built yet
@@ -407,7 +454,8 @@ export function enterStage(s, n, bridge = null) {
   // Money does not cross stages (it belonged to the old job); a stage may start with some savings.
   s.dollars = st.startDollars ?? 0;
   s.homes = 0;
-  s.price = st.market?.kind === 'price' ? st.market.defaultPrice : 0;
+  s.models = st.market?.kind === 'models' ? [{ speed: 1, homes: 0 }] : [];   // Model 1 is on sale from the start
+  s.modelAt = s.time; s.sales = []; s.salesNext = s.time; s.engineersShipped = false;
   s.stageStart = { time: s.time, lifetime: s.lifetime, clicks: s.clicks };
   s.phase = 'playing';
   addLog(s, st.title, bridge?.date ?? null, 'stage');
@@ -427,10 +475,18 @@ export function tick(s, dt) {
   const sold = gain * sellShare(s);
   s.ops += gain - sold; s.lifetime += gain;
   if (sold > 0) s.dollars += Math.min(sold, sellDemand(s) * dt) * moneyPerOp(s, fx);
-  if (s.price && sellOpen(s)) {     // Stage 3: computers leave for homes, money comes in
-    const f = priceFlow(s, s.price, fx);
-    s.homes += f.sold * dt;
+  if (marketKind(s) === 'models' && sellOpen(s)) {   // Stage 3: computers leave for homes, money comes in
+    const f = modelFlow(s, fx);
+    s.homes += f.sold * dt; s.models[s.models.length - 1].homes += f.sold * dt;
     s.dollars += f.dollarsPerSec * dt;
+    if (s.time >= s.salesNext) {    // one chart bar every 2 s, the last two minutes kept
+      s.sales.push(Math.round(f.demand * 100) / 100);
+      if (s.sales.length > 60) s.sales.shift();
+      s.salesNext = s.time + 2;
+    }
+    // The engineers ship a model that is close to the chip's limit themselves.
+    const m = stageData(s).market;
+    if (capacity(s, fx) > 0 && labRatio(s, fx) >= 1 + m.autoAt * (labLimit(s, fx) - 1)) launchModel(s, true);
   }
 
   // smoothed click rate (time constant ~3 s)
@@ -557,8 +613,11 @@ export function deserialize(json) {
     s.hushUntil = 0;
     s.version = SAVE_VERSION;
   }
-  // v3 -> v4: homes and the price tag (Stage 3).
-  if (STAGES[s.stage].market?.kind === 'price' && !s.price) s.price = STAGES[s.stage].market.defaultPrice;
+  // v4 -> v5: the price tag became models. Computers already in homes become Model 1s.
+  delete s.price;
+  if (STAGES[s.stage].market?.kind === 'models' && !s.models.length) {
+    s.models = [{ speed: 1, homes: s.homes }]; s.modelAt = s.time; s.sales = []; s.salesNext = s.time;
+  }
   // A save that finished the last built stage moves on once the next stage exists.
   if (s.phase === 'next' && STAGES[s.stage + 1]) enterStage(s, s.stage + 1);
   s.version = SAVE_VERSION;

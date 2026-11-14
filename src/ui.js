@@ -38,7 +38,7 @@ function resetStage(s, st) {
   shownStage = s.stage;
   prodEls.clear(); cardEls.clear(); etaCache.clear();
   lockedEl = null; bigEl = null; goalKind = null;
-  lastTeamText = ''; lastGoalText = '';
+  lastTeamText = ''; lastGoalText = ''; chartKey = '';
   $('producer-list').replaceChildren();
   $('upgrade-list').replaceChildren();
   // Era palette: one body class per stage; CSS cross-fades the colours.
@@ -123,9 +123,9 @@ export function render(s) {
   const showHomes = !!st.homes && s.homes >= 1 && s.phase !== 'next';
   show($('homes-row'), showHomes);
   if (showHomes) {
-    const each = E.homeOutput(s), n = Math.floor(s.homes);
-    set($('homes-owned'), fmt(n));
-    set($('homes-text'), `Each runs ${fmt(each, 1)} ${unit} a second in someone's home. Together: ${fmt(each * n, 1)} per second.`);
+    const each = E.homeOutput(s);
+    set($('homes-owned'), fmt(Math.floor(s.homes)));
+    set($('homes-text'), homesByModel(s) + ` Together: ${fmt(E.homeWork(s) * each, 1)} ${unit} per second.`);
   }
   for (const p of st.producers) {
     const unlocked = E.producerUnlocked(s, p.id);
@@ -423,12 +423,17 @@ function buildMarket(st) {
   if (!m) return;
   set($('market-title'), m.title);
   set($('market-intro'), m.intro);
+  const models = m.kind === 'models';
+  show($('market-seg'), !models);
+  show($('models'), models);
+  show($('sell-status'), !models);
+  show($('market-intro'), !!m.intro);
+  if (models) return;
   const seg = $('market-seg');
   seg.setAttribute('aria-label', m.kind === 'price' ? 'Price of your computer' : 'How much computer time to sell');
   const values = m.kind === 'price' ? m.prices : m.levels;
   seg.replaceChildren(h('span', { class: 'seg-label' }, m.label),
     ...values.map(v => h('button', { 'data-action': 'sell', 'data-value': String(v) }, m.kind === 'price' ? money(v) : `${Math.round(v * 100)}%`)));
-  show($('sell-homes'), m.kind === 'price');
 }
 
 function renderMarket(s, unit) {
@@ -443,13 +448,12 @@ function renderMarket(s, unit) {
   set($('money-text'), money(s.dollars));
   set($('money-rate'), perSec > 0 ? `+${money(sig2(perSec))} per second` : '');
   if (!open) return;
+  if (st.market.kind === 'models') { renderModels(s); return; }
   const value = E.marketValue(s);
   for (const b of $('market-seg').querySelectorAll('[data-action="sell"]')) {
     const on = Number(b.dataset.value) === value;
     if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
   }
-  if (st.market.kind === 'price') { renderPriceMarket(s); return; }
-  set($('sell-forecast'), '');
   const flow = E.sellFlow(s);
   const want = E.sellDemand(s);
   let status;
@@ -462,20 +466,89 @@ function renderMarket(s, unit) {
   set($('sell-customers'), 'Customers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.');
 }
 
-// Stage 3: what your price does, how many computers are in homes, and what holds you back.
-// Numbers are rounded to two significant digits, so the lines change only when something real changes.
-function renderPriceMarket(s) {
-  const f = E.priceFlow(s);
-  set($('sell-forecast'), `At ${money(s.price)}: about ${fmt(sig2(f.sold), 1)} sold a second, ${money(sig2(f.dollarsPerSec))} a second.`);
-  const wom = E.wordOfMouthShare(s) * f.sold;
-  // The count itself lives in "Your garage" (Computers sold); here only where new buyers come from.
-  set($('sell-homes'), wom >= 1 ? `Of those, ${fmt(sig2(wom), 1)} a second come from word of mouth.` : '\u00a0');
+// ---------- Stage 3: launching models ----------
+const ratioText = (r) => `${(Math.round(r * 10) / 10).toFixed(1)}×`;
+// "Model 1: 900 · Model 2: 6,100 · Model 3: 22,000." The oldest fold into one count when there are many.
+function homesByModel(s) {
+  const ms = s.models, parts = [];
+  const keep = 3, cut = ms.length > keep + 1 ? ms.length - keep : 0;
+  if (cut) parts.push(`Models 1–${cut}: ${fmt(Math.floor(ms.slice(0, cut).reduce((a, m) => a + m.homes, 0)))}`);
+  ms.forEach((m, i) => { if (i >= cut && m.homes >= 1) parts.push(`Model ${i + 1}: ${fmt(Math.floor(m.homes))}`); });
+  return parts.join(' · ') + '.';
+}
+// Round a chart's top up to 1, 2 or 5 × 10^k, so the scale moves rarely.
+function niceCeil(v) {
+  if (!(v > 0)) return 1;
+  const k = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 5, 10]) if (v <= m * k) return m * k;
+  return 10 * k;
+}
+const SLOTS = 60, SHOWN = 45;    // 60 bar slots of 2 s; the last 15 are kept for the expected fade
+let chartKey = '';
+function renderChart(s, f) {
+  const bars = s.sales.slice(-SHOWN);
+  const n = bars.length, age = E.modelAge(s), now = E.modelDemand(s);
+  // Expected buyers from here on (same markets, only the fade): dotted.
+  const proj = [];
+  const f0 = E.freshness(s);
+  for (let j = 1; n + j - 1 < SLOTS; j++) proj.push(now * E.freshness(s, undefined, age + 2 * j) / f0);
+  const top = niceCeil(Math.max(1, ...bars, ...proj, f.capacity) * 1.05);
+  const key = bars.join(',') + '|' + top + '|' + Math.round(f.capacity) + '|' + s.models.length;
+  if (key === chartKey) return;  // redraw only when a bar is added or the scale moves
+  chartKey = key;
+  const y = (v) => (40 - 40 * Math.min(1, v / top)).toFixed(2);
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+  const svg = $('chart-svg');
+  const kids = bars.map((v, i) => el('rect', { x: i * 2 + 0.3, y: y(v), width: 1.4, height: (40 - y(v)).toFixed(2), class: 'bar' }));
+  if (proj.length) {
+    const pts = [[n * 2 - 1, y(now)], ...proj.map((v, j) => [(n + j) * 2 + 1, y(v)])];
+    kids.push(el('polyline', { points: pts.map(p => p.join(',')).join(' '), class: 'proj', 'vector-effect': 'non-scaling-stroke' }));
+  }
+  if (f.capacity > 0)
+    kids.push(el('line', { x1: 0, x2: 120, y1: y(f.capacity), y2: y(f.capacity), class: 'cap', 'vector-effect': 'non-scaling-stroke' }));
+  svg.replaceChildren(...kids);
+  set($('chart-max'), fmt(top));
+  const capY = 100 * Math.min(1, f.capacity / top);
+  const label = $('chart-capline');
+  show(label, f.capacity > 0);
+  set(label, `you can make ${fmt(sig2(f.capacity), 1)}`);
+  // the label sits just above the dashed line, or just under it when the line is near the top
+  label.style.bottom = capY > 75 ? `calc(${capY.toFixed(1)}% - 1.3em)` : `${capY.toFixed(1)}%`;
+}
+
+function renderModels(s) {
+  const st = E.stageData(s), f = E.modelFlow(s);
+  const n = E.modelOnSale(s), block = E.launchBlock(s);
+  const prev = s.models[n - 2], cur = s.models[n - 1];
+  set($('model-now'), f.capacity <= 0 && n === 1 ? 'Now selling: nothing yet. Set up a workbench to build your first computer.'
+    : n === 1 ? 'Now selling: Model 1, a kit you solder yourself.'
+    : `Now selling: Model ${n} · ${ratioText(cur.speed / prev.speed)} as fast as Model ${n - 1}`);
+  renderChart(s, f);
   let status;
-  if (f.capacity <= 0) status = 'Set up a workbench to start making computers.';
-  else if (f.demand > f.capacity * 1.05) status = 'Buyers are waiting: make more computers, or raise the price.';
-  else if (f.capacity > f.demand * 1.05) status = 'Computers are piling up: lower the price, or wait for more buyers.';
+  if (f.capacity <= 0) status = 'Nobody can build one yet.';
+  else if (f.demand > f.capacity * 1.05) status = 'Buyers are waiting: make more computers.';
+  else if (f.capacity > f.demand * 1.05) status = 'You make more than people buy.';
   else status = 'Making and selling are even.';
-  set($('sell-status'), status);
+  set($('sales-line'), (f.sold > 0 ? `Selling ${fmt(sig2(f.sold), 1)} a second, ${money(sig2(f.dollarsPerSec))} a second. ` : '') + status);
+  // The lab
+  const r = E.labRatio(s), L = E.labLimit(s);
+  set($('lab-line'), `In the lab: Model ${n + 1} · ${ratioText(r)} as fast`);
+  set($('lab-limit'), `This chip allows up to ${ratioText(L)}`);
+  fill($('lab-fill'), (r - 1) / (L - 1));
+  const phase = E.labPhase(s);
+  set($('lab-status'), {
+    start: 'Just started.',
+    fast: 'Getting better fast.',
+    slowing: 'Slowing down.',
+    limit: 'Nearly as good as this chip allows: your engineers will ship it soon.',
+  }[phase]);
+  set($('launch-btn'), `Launch Model ${n + 1}`);
+  const off = block !== null;
+  if ($('launch-btn').disabled !== off) $('launch-btn').disabled = off;
+  set($('lab-note'), block === 'workbench' ? 'Set up a workbench first: someone has to build it.'
+    : block === 'lab' ? `You can launch it once it is ${ratioText(st.market.minRatio)} as fast.`
+    : `Model ${n} stops selling when Model ${n + 1} launches. Computers already in homes keep counting.`);
   const names = E.customers(s).map(c => c.name).join(', ');
   set($('sell-customers'), names ? 'Buyers: ' + names.charAt(0).toUpperCase() + names.slice(1) + '.' : '');
 }

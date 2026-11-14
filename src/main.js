@@ -107,6 +107,7 @@ document.addEventListener('click', (e) => {
       mainBtn.focus({ preventScroll: true });
       break;
     case 'sell': E.setMarket(s, Number(btn.dataset.value)); break;
+    case 'launch': if (E.launchModel(s)) render(s); break;
     case 'log-top': document.getElementById('log').scrollTop = 0; break;
     case 'dev-stage':
       s = E.startAtStage(Number(btn.dataset.stage));

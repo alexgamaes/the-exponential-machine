@@ -72,7 +72,7 @@
           <p id="legacy-text"></p>
         </div>
         <div id="homes-row" class="producer" hidden>
-          <div class="producer-head"><span>Computers sold</span><span id="homes-owned" class="producer-owned"></span></div>
+          <div class="producer-head"><span>Computers in homes</span><span id="homes-owned" class="producer-owned"></span></div>
           <p id="homes-text"></p>
         </div>
         <div id="producer-list"></div>
@@ -82,9 +82,24 @@
         <h2 id="market-title"></h2>
         <p id="market-intro" class="muted-note first"></p>
         <div id="market-seg" class="seg" role="group"></div>
-        <p id="sell-forecast"></p>
-        <p id="sell-homes" hidden></p>
         <p id="sell-status"></p>
+        <div id="models" hidden>
+          <p id="model-now" class="model-now"></p>
+          <p class="chart-cap">Buyers a second since launch</p>
+          <div id="sales-chart" class="chart" aria-hidden="true">
+            <span id="chart-max" class="chart-max"></span>
+            <svg id="chart-svg" viewBox="0 0 120 40" preserveAspectRatio="none"></svg>
+            <span id="chart-capline" class="chart-capline"></span>
+          </div>
+          <p id="sales-line"></p>
+          <div class="lab">
+            <p id="lab-line"></p>
+            <div class="lab-bar"><div id="lab-fill" class="lab-fill"></div></div>
+            <p class="lab-under"><span id="lab-status"></span><span id="lab-limit"></span></p>
+            <button id="launch-btn" class="buy-btn" data-action="launch"></button>
+            <p id="lab-note" class="muted-note"></p>
+          </div>
+        </div>
         <p id="sell-customers" class="muted-note"></p>
       </section>
       </div>

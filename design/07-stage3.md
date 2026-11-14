@@ -1,7 +1,8 @@
 # Stage 3 — The Garage (Nov 1971 → Jan 1984): merged design
 
 Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
-decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Approved and built** (`src/data/stage3.js`); §8 records what changed while building.
+Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
+decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Built, then redesigned (§9):** the price tag of §4 was replaced by launching models. §1–3 and §5–7 (story, pace, beats) still hold; §4 does not.
 
 ## 1. The stage in one paragraph
 You are the Bletchley codebreaker, now about 55. You leave the computing division with a pension, the pencil and the
@@ -115,3 +116,22 @@ Two cards cost money (the floppy disk, the price war), the rest operations. Line
 - **The speed line, all stages,** is now two plain sentences: "All your computers together are as fast as 220 Cray-1
   supercomputers. Checking every chess game nine moves ahead: about 37 min." (was "Your garage: as fast as 220 Cray-1s ·
   looking nine moves ahead in chess in about 37 min"). Each stage's `compare.lead` gives the first words.
+
+## 9. Redesign, as built (Nov 13): launch the next model
+The player found the price tag dull ("very simple to set the price, not a cool feature"). Proposals: `stage3/10-redesign-brief.md`,
+`11-game-design-redesign.md`, `12-ux-redesign.md`; merge: `13-merged-redesign.md`. The price version is tagged `stage3-price`.
+- **Mechanic:** the lab designs the next model on an S-curve up to the chip's limit (1.8× + chip cards); you launch it from 1.2×.
+  Buyers ×1.5 at launch, halving every 45 s to ×0.25. Every computer sold runs at its model's speed forever (`s.models`).
+  At 90% of the limit the engineers ship it themselves, with a ledger line. Computers sell for $1,000; no price tag.
+- **Cards:** Eight bits / the $25 chip / Chips for everyone / Rubber keys raise the lab's limit (+0.4/+0.6/+0.6/+0.6).
+  BASIC, floppy, spreadsheet, games, River Raid, Lotus: every computer in a home ×1.2. Open = buyers stay twice as long;
+  Closed = limit +0.4. Factories 10 a second, +10% each. Home output 35,000. Goal reward ×2 (was ×3) to keep the end speed.
+- **Screen:** "Your computers on sale": model on sale, a chart of buyers a second since launch (bars every 2 s, dotted
+  expected fade, dashed "you can make N"), the sales line, the lab bar, its phase ("Just started" · "Getting better fast" ·
+  "Slowing down" · "Nearly as good as this chip allows"), the launch button and why it is off. "Computers in homes" in the
+  garage lists homes by model. Each launch writes a ledger line describing the model (`market.modelLines`).
+- **Sim** (`--launch smart|never|eager|ratio:X|fade`): smart 12.9–13.1 min, 8–9 launches, quiet ≤ 30 s, end ~2.1–2.2×10¹².
+  Never launching 16.1–16.3 min (+24%); launching at every chance 15.8–16.4 (+23%); always at 1.8× ≈ smart (wide sweet spot).
+  `npm test` runs the lazy player with `--launch never` (Stage 3 window widened to 18 min for lazy policies).
+- **Not built from the proposals:** the finale inside the lab block, orders piling up, per-model prices, "Cut the price".
+- "Half a million homes" beat → 150,000 (homes now end ~170,000). Save version 5 (a v4 save's homes become Model 1s).

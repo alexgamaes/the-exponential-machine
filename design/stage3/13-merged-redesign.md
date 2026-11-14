@@ -1,4 +1,4 @@
-# Stage 3 redesign: merged proposal (lead designer, Nov 13) — awaiting the player's approval
+# Stage 3 redesign: merged proposal (lead designer, Nov 13) — approved and built (see 07-stage3 §9)
 
 Sources: `10-redesign-brief.md`, game design `11-game-design-redesign.md`, UX `12-ux-redesign.md`. Both designers,
 working apart, picked the same mechanic: **launch the next model**. Story, beats, goal, finale, pace: unchanged (07-stage3).

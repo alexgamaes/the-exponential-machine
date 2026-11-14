@@ -2,8 +2,9 @@
 // Pure data. Merged design: design/07-stage3.md. Numbers: stage3/04-systems.md (tuned with sim/simulate.mjs).
 // History: stage3/01-historian.md. Story: stage3/02-plot.md. Every total in a condition counts from the start of this stage.
 //
-// The new thing: you sell the computers themselves. Workbenches and factories (paid with money) make computers;
-// buyers take them at your price; every computer sold runs in someone's home and adds to your speed.
+// The new thing: you launch models. The lab keeps designing the next computer; you choose when to launch it.
+// Workbenches and factories (paid with money) make computers; every computer sold keeps running in someone's
+// home at its model's speed. Redesign: design/stage3/13-merged-redesign.md (from 11-game-design, 12-ux).
 
 const W = 'workbench', F = 'factory';
 
@@ -23,7 +24,7 @@ export const STAGE3 = {
   task: { label: 'Checking every chess game nine moves ahead', size: 7.9e13 },
   compare: { lead: 'All your computers together are as fast as', rate: 1.6e8, one: 'one Cray-1 supercomputer', many: '{n} Cray-1 supercomputers', part: '{n}% of a Cray-1 supercomputer' },
   legacy: 'The garage, 1971–84',
-  homes: { output: 5e4 },             // operations per second from one computer in a home
+  homes: { output: 3.5e4 },           // operations per second from one Model 1 in a home
   text: {
     team: 'Your garage',
     total: 'Made since 1971: {n}',
@@ -38,33 +39,46 @@ export const STAGE3 = {
     { when: { after: 'chips', delay: 8 }, role: 'Chairman of the board' },
   ],
 
-  // Selling computers: a price tag against demand. Markets add buyers per second (at the reference price).
+  // Launching models. Lab: next model = 1 + (limit − 1)·k/(1 + k), k = p³, p = age / (labTime·√(limit − 1)).
+  // Buyers = (markets + wordOfMouth × homes) × freshness; freshness = surge at launch, halves every fadeHalf s, floor fadeFloor.
   market: {
-    kind: 'price',
-    title: 'Sell computers',
-    intro: 'Every computer you sell keeps running in someone\'s home, and its work counts as yours. Cheap sells more. Dear earns more money.',
-    label: 'Price',
+    kind: 'models',
+    title: 'Your computers on sale',
     reveal: {},
-    prices: [299, 599, 1299, 2499],
-    defaultPrice: 1299,
-    refPrice: 1299,
-    elasticity: 0.8,                  // word of mouth's price sensitivity; each market has its own below
+    price: 1000,                      // money per computer sold
+    labMax: 1.8, labTime: 65, labShape: 3,
+    minRatio: 1.2,                    // you can launch once the next model is this much faster
+    autoAt: 0.9,                      // the engineers ship it themselves this far towards the limit
+    surge: 1.5, fadeHalf: 45, fadeFloor: 0.25,
     wordOfMouth: 0.0015,              // buyers per second added by each computer already in a home
-    // elasticity: how much a market cares about price (hobbyists and families count every dollar; offices pay what it costs)
+    // What each model is like (ledger). Model 1 is the kit on sale from the start.
+    modelLines: {
+      2: 'It comes in a wooden case. The hobbyists say it looks like furniture.',
+      3: 'It has a keyboard built in. Nobody flips switches to type in a program any more.',
+      4: 'It plugs into a television and shows colour.',
+      5: 'It loads programs from a cassette tape. One game takes a cup of tea.',
+      6: 'It has 16K of memory: as much as a whole lab had when you started.',
+      7: 'It has lower-case letters. The typists stop complaining.',
+      8: 'It has a disk drive built in.',
+      9: 'It shows eighty columns of text, as wide as a typed page.',
+      10: 'It is portable: eleven kilos, a five-inch screen and a handle.',
+      11: 'It has a sixteen-bit chip.',
+      12: 'It has a hard disk of ten megabytes. Nobody can imagine filling it.',
+    },
     customers: [
-      { id: 'hobbyists', name: 'hobbyists', demand: 6, elasticity: 1.2, when: {}, date: '1971-12',
+      { id: 'hobbyists', name: 'hobbyists', demand: 6, when: {}, date: '1971-12',
         text: 'A few hobbyists write to ask if they can buy one. They will solder it themselves.' },
-      { id: 'clubs', name: 'computer clubs', demand: 20, elasticity: 1.2, when: { after: 'cover', delay: 6 }, date: '1975-02',
+      { id: 'clubs', name: 'computer clubs', demand: 20, when: { after: 'cover', delay: 6 }, date: '1975-02',
         text: 'Computer clubs open in garages and school halls. Everyone wants what the others have.' },
-      { id: 'shops', name: 'computer shops', demand: 10, elasticity: 0.6, when: { after: 'cheapChip', delay: 35 }, date: '1976-07',
+      { id: 'shops', name: 'computer shops', demand: 10, when: { after: 'cheapChip', delay: 35 }, date: '1976-07',
         text: 'A shop orders fifty computers and says: assembled, please. Its customers do not own soldering irons.' },
-      { id: 'radioShops', name: 'a chain of radio shops', demand: 150, elasticity: 0.8, when: { after: 'inABox', delay: 20 }, date: '1977-08',
+      { id: 'radioShops', name: 'a chain of radio shops', demand: 150, when: { after: 'inABox', delay: 20 }, date: '1977-08',
         text: 'A chain of radio shops plans for three thousand computers. Ten thousand people order one in the first month.' },
-      { id: 'accountants', name: 'accountants', demand: 300, elasticity: 0.1, when: { after: 'spreadsheet', delay: 6 }, date: '1979-11',
+      { id: 'accountants', name: 'accountants', demand: 300, when: { after: 'spreadsheet', delay: 6 }, date: '1979-11',
         text: 'Accountants walk into shops asking for the spreadsheet, and buy whatever computer runs it.' },
-      { id: 'families', name: 'families', demand: 400, elasticity: 1.3, when: { after: 'games', delay: 6 }, date: '1980-06',
+      { id: 'families', name: 'families', demand: 400, when: { after: 'games', delay: 6 }, date: '1980-06',
         text: 'Families buy a computer "for the children\'s homework". The children play games on it.' },
-      { id: 'offices', name: 'offices', demand: 800, elasticity: 0.05, when: { after: 'officePC', delay: 8 }, date: '1981-09',
+      { id: 'offices', name: 'offices', demand: 800, when: { after: 'officePC', delay: 8 }, date: '1981-09',
         text: 'Offices put a computer on every desk. The typing pool learns to save its work.' },
     ],
   },
@@ -79,7 +93,7 @@ export const STAGE3 = {
     {
       id: F, name: 'Factories', short: 'factories', verb: 'Open', buyLabel: 'Open a factory',
       each: 'Each builds {out} computers a second.',
-      baseCost: 500000, growth: 1.06, output: 20, currency: 'dollars', makes: 'computers',
+      baseCost: 500000, growth: 1.1, output: 10, currency: 'dollars', makes: 'computers',
       reveal: { upgrade: 'inABox' },
     },
   ],
@@ -87,8 +101,8 @@ export const STAGE3 = {
   upgrades: [
     {
       id: 'eightBit', name: 'Eight bits', cost: 6e8,
-      text: 'Computers in homes work 1.5× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.5 },
+      text: 'Better chips: the lab\'s limit goes up by 0.4×.',
+      effect: { type: 'labMax', value: 0.4 },
       reveal: {}, date: '1972-04',
       log: 'A terminal maker orders a chip that handles eight bits at once, then decides it does not want it. The chip maker sells it to everyone else.',
     },
@@ -102,15 +116,15 @@ export const STAGE3 = {
     },
     {
       id: 'basic', name: 'A language for kits', cost: 7.2e9,
-      text: 'Computers in homes work 1.5× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.5 },
+      text: 'Every computer in a home works 1.2× faster.',
+      effect: { type: 'producerMul', target: 'home', value: 1.2 },
       reveal: { lifetime: 9e9, after: 'cover', delay: 14 }, date: '1975-03',
       log: 'Two young men sell a BASIC for a machine they have never touched. One finishes the last part on the plane. It runs first time.',
     },
     {
       id: 'cheapChip', name: 'The $25 chip', cost: 2e10,
-      text: 'Workbenches build 1.5× more.',
-      effect: { type: 'producerMul', target: W, value: 1.5 },
+      text: 'Better chips: the lab\'s limit goes up by 0.6×.',
+      effect: { type: 'labMax', value: 0.6 },
       reveal: { lifetime: 2.5e10, after: 'basic', delay: 12 }, date: '1975-09',
       log: 'At a trade show, a new chip is sold from a jar for $25. Its rivals cost seven times as much.',
     },
@@ -128,10 +142,10 @@ export const STAGE3 = {
         type: 'choice',
         // ids match the other stages, so the sim's --choice flag covers every stage: machines = Closed, people = Open.
         options: [
-          { id: 'people', label: 'Open: eight slots', text: 'Other people build add-ons and programs: 1.5× more buyers at every price.',
-            effect: { type: 'demandMul', value: 1.5 } },
-          { id: 'machines', label: 'Closed: one sealed box', text: 'You keep the whole price: each sale earns 1.5× more money.',
-            effect: { type: 'priceMul', value: 1.5 } },
+          { id: 'people', label: 'Open: eight slots', text: 'Other people build add-ons: each model keeps its buyers twice as long.',
+            effect: { type: 'fadeMul', value: 2 } },
+          { id: 'machines', label: 'Closed: one sealed box', text: 'You design every part: the lab\'s limit goes up by 0.4×.',
+            effect: { type: 'labMax', value: 0.4 } },
         ],
       },
       reveal: { lifetime: 1.1e11, after: 'inABox', delay: 10 }, date: '1977-06',
@@ -139,29 +153,29 @@ export const STAGE3 = {
     },
     {
       id: 'floppy', name: 'A floppy disk drive', cost: 1e6, currency: 'dollars',
-      text: 'Computers in homes work 1.5× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.5 },
+      text: 'Every computer in a home works 1.2× faster.',
+      effect: { type: 'producerMul', target: 'home', value: 1.2 },
       reveal: { lifetime: 1.6e11, upgrade: 'openClosed' }, date: '1978-06',
       log: 'Programs on a disk instead of a cassette tape. Loading a game takes seconds, not a cup of tea.',
     },
     {
       id: 'spreadsheet', name: 'A spreadsheet', cost: 2.24e11,
-      text: 'Computers in homes work 1.5× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.5 },
+      text: 'Every computer in a home works 1.2× faster.',
+      effect: { type: 'producerMul', target: 'home', value: 1.2 },
       reveal: { lifetime: 2.8e11, upgrade: 'floppy' }, date: '1979-10',
       log: 'A sheet of numbers that does its own sums: change one and every total changes with it. Accountants buy a computer just to run it.',
     },
     {
       id: 'games', name: 'Games at home', cost: 8.96e11,
-      text: 'Computers in homes work 1.25× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.25 },
+      text: 'Every computer in a home works 1.2× faster.',
+      effect: { type: 'producerMul', target: 'home', value: 1.2 },
       reveal: { lifetime: 1.12e12, after: 'spreadsheet', delay: 20 }, date: '1980-05',
       log: 'Roberta Williams writes a murder mystery with pictures. Her husband programs it. They sell it in zip-lock bags.',
     },
     {
       id: 'chips', name: 'Chips for everyone', cost: 1.76e12,
-      text: 'Factories build 1.5× more.',
-      effect: { type: 'producerMul', target: F, value: 1.5 },
+      text: 'Better chips: the lab\'s limit goes up by 0.6×.',
+      effect: { type: 'labMax', value: 0.6 },
       reveal: { lifetime: 2.2e12, upgrade: 'games' }, date: '1980-10',
       log: 'Lynn Conway\'s course teaches students to design whole chips. Dozens of class projects share one wafer.',
     },
@@ -174,8 +188,8 @@ export const STAGE3 = {
     },
     {
       id: 'rubberKeys', name: 'Rubber keys', cost: 7.04e12,
-      text: 'Computers in homes work 1.5× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.5 },
+      text: 'Better chips: the lab\'s limit goes up by 0.6×.',
+      effect: { type: 'labMax', value: 0.6 },
       reveal: { lifetime: 8.8e12, upgrade: 'officePC' }, date: '1982-04',
       log: 'In Britain, a computer with rubber keys costs £125. A generation writes games in its bedroom.',
     },
@@ -188,15 +202,15 @@ export const STAGE3 = {
     },
     {
       id: 'riverRaid', name: 'A whole river in 4K', cost: 1.44e13,
-      text: 'Computers in homes work 1.25× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.25 },
+      text: 'Every computer in a home works 1.2× faster.',
+      effect: { type: 'producerMul', target: 'home', value: 1.2 },
       reveal: { lifetime: 1.8e13 }, date: '1982-10',
       log: 'Carol Shaw fits a whole river into a game cartridge: it is not stored, it is worked out from a number as you fly.',
     },
     {
       id: 'lotus', name: 'A spreadsheet that draws', cost: 2.2e13,
-      text: 'Computers in homes work 1.25× faster.',
-      effect: { type: 'producerMul', target: 'home', value: 1.25 },
+      text: 'Every computer in a home works 1.2× faster.',
+      effect: { type: 'producerMul', target: 'home', value: 1.2 },
       reveal: { lifetime: 2.8e13 }, date: '1983-01',
       log: 'The new spreadsheet draws its own charts. Offices buy computers in tens.',
     },
@@ -204,8 +218,8 @@ export const STAGE3 = {
 
   goal: {
     id: 'everyHome', name: 'Put a computer in every home', lifetime: 7e13,
-    text: 'Computers become ordinary. Everything works 3× faster.',
-    effect: { type: 'globalMul', value: 3 },
+    text: 'Computers become ordinary. Everything works twice as fast.',
+    effect: { type: 'globalMul', value: 2 },
     date: '1983-01',
     log: 'January 1983. A magazine chooses its Person of the Year. This year it is not a person. It is the computer.',
   },
@@ -250,8 +264,8 @@ export const STAGE3 = {
       text: 'A writer finishes a novel on one of your computers. She says she will never go back to the typewriter.' },
     { id: 'boys', when: { after: 'rubberKeys', delay: 12 }, date: '1982-06',
       text: 'The adverts all show a boy at the keyboard and his father watching. Your first clerk looks at one for a long time. "In our day, that was a girl\'s job."' },
-    { id: 'homes500k', when: { homes: 500000 },
-      text: 'Half a million of your computers are switched on in other people\'s houses. You will never meet most of their owners. They are all still counting.' },
+    { id: 'homes150k', when: { homes: 150000 },
+      text: 'A hundred and fifty thousand of your computers are switched on in other people\'s houses. You will never meet most of their owners. They are all still counting.' },
     { id: 'petrov', when: { afterGoal: 2 }, date: '1983-09', hush: 20,
       text: 'September 1983. A Soviet computer reports five American missiles in the air. The officer on duty, Stanislav Petrov, decides it is wrong. It is. Nobody hears about it for fifteen years.' },
   ],
