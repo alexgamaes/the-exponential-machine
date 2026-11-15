@@ -246,8 +246,8 @@ test('finishing the last built stage shows "to be continued", and the save stays
   const s = E.startAtStage(last);
   s.lifetime = s.stageStart.lifetime + E.STAGES[last].goal.lifetime;
   E.buyGoal(s);
-  s.ops = 1e18;
-  while (E.currentFinale(s)) E.buyFinale(s);
+  s.ops = 1e18; s.dollars = 1e18;
+  for (let i = 0; i < 10 && E.currentFinale(s); i++) E.buyFinale(s);
   for (let i = 0; i < 1000 && s.phase === 'ending'; i++) E.tick(s, 0.5);
   const rate = E.getRate(s);
   assert.equal(E.passLedger(s), true);
@@ -288,11 +288,10 @@ test('every card says what its effect really does', () => {
     if (e.type === 'clickPct') return text.includes(`${Math.round(e.value * 100)}%`);
     if (e.type === 'clickMul') return /2 guesses|twice/.test(text);
     if (e.type === 'demandMul') return text.includes(`${e.value}× more buyers`);
-    if (e.type === 'nextAdd') return text.toLowerCase().includes(`next models leap ${e.value}× further`);
-    if (e.type === 'leapAdd') return text.includes(`series leap ${e.value}× further`);
-    if (e.type === 'devMul' || e.type === 'progMul') return text.includes(`${e.value}×`);
-    if (e.type === 'carry') return text.includes(`${Math.round(e.value * 100)}%`);
-    if (e.type === 'killerApp') return text.includes(`+${e.value} boost`);
+    if (e.type === 'genMul') return text.includes(`run ${e.value}× as fast`);
+    if (e.type === 'buyersMul') return text.includes(`${e.value}× buyers`);
+    if (e.type === 'chipMul') return e.value === 0.5 ? /half/.test(text) : text.includes(`${Math.round((1 - e.value) * 100)}% less`);
+    if (e.type === 'homesBuyers') return /Buyers grow with every computer in a home/.test(text);
     if (e.type === 'multi') return e.effects.every(x => says(text, x));
     return true; // unlockProducer, synergy: checked by hand
   };
@@ -301,146 +300,155 @@ test('every card says what its effect really does', () => {
       if (u.effect.type === 'choice') for (const o of u.effect.options) assert.ok(says(o.text, o.effect), `${u.id}/${o.id}: ${o.text}`);
       else assert.ok(says(u.text, u.effect), `${u.id}: ${u.text}`);
     }
-    assert.ok(says(st.goal.text, st.goal.effect), st.goal.id);
+    if (st.goal.effect) assert.ok(says(st.goal.text, st.goal.effect), st.goal.id);
   }
 });
 
-// ---------- Stage 3: launching models ----------
+// ---------- Stage 3: the shop ----------
 function stage3() { return E.startAtStage(3); }
 
-test('Stage 3 starts with savings, not Stage 2 money, and Model 1 on sale', () => {
+test('Stage 3 starts with savings, chips, a price, an empty warehouse and nothing in homes', () => {
   const s = stage3();
   assert.equal(s.stage, 3);
   assert.equal(s.dollars, STAGE3.startDollars);
-  assert.equal(E.modelOnSale(s), 1);
-  assert.equal(s.homes, 0);
-  assert.equal(E.getRate(s), s.legacyRate);       // workbenches make computers, not speed
+  assert.equal(s.chips, STAGE3.market.chips.start);
+  assert.equal(s.price, STAGE3.market.priceStart);
+  assert.equal(s.stockN, 0);
+  assert.equal(E.getRate(s), s.legacyRate);
 });
 
-test('computers sold go into homes, add speed and earn money; capped by what you make', () => {
+test('the button builds one computer into the warehouse and uses a chip; no chips, no computer', () => {
   const s = stage3();
-  assert.ok(E.buyProducer(s, 'workbench'));
-  const r0 = E.getRate(s);
-  E.tick(s, 10);
-  assert.ok(Math.abs(s.homes - 10) < 1e-6, 'one workbench, 10 s: 10 computers (demand is higher)');
-  assert.ok(E.getRate(s) > r0);
-  assert.ok(Math.abs(s.dollars - (STAGE3.startDollars - 1000 + 10 * STAGE3.market.price)) < 1e-6);
+  assert.equal(E.click(s), 1);
+  assert.equal(s.stockN, 1);
+  assert.equal(s.chips, STAGE3.market.chips.start - 1);
+  assert.equal(s.ops, STAGE3.arrival.ops, 'a click makes no operations in Stage 3');
+  s.chips = 0;
+  assert.equal(E.click(s), 0);
+  assert.equal(s.stockN, 1);
 });
 
-test('the lab improves on an S-curve; Eight bits makes next models leap further', () => {
+test('buyers take computers from the warehouse; each sale pays the price and adds speed for good', () => {
   const s = stage3();
-  const m = STAGE3.market;
-  const p = (a) => E.labProgress(s, a);
-  assert.equal(p(0), 0);
-  assert.ok(p(20) < p(50) && p(50) < p(100) && p(1e6) <= 1);
-  assert.ok(p(50) - p(30) > p(200) - p(180), 'fast first, then slowing');
-  assert.ok(Math.abs(E.nextGain(s) - m.nextLeap) < 1e-9);
+  for (let i = 0; i < 5; i++) E.click(s);
+  const r0 = E.getRate(s), d0 = s.dollars;
+  E.tick(s, 100);
+  assert.ok(Math.abs(s.homes - 5) < 1e-9 && s.stockN === 0, 'all five sold');
+  assert.ok(Math.abs(s.dollars - (d0 + 5 * s.price)) < 1e-6);
+  assert.ok(Math.abs(E.getRate(s) - (r0 + 5 * E.homeOutput(s))) < 1e-6);
+});
+
+test('a dearer price brings fewer buyers; the warehouse fills when you build more than they buy', () => {
+  const s = stage3();
+  const b = E.buyersAt(s, 400), dear = E.buyersAt(s, 800);
+  assert.ok(dear < b && dear > b / 2, 'elasticity below 1: twice the price, more than half the buyers');
+  assert.ok(E.changePrice(s, 1) && s.price > STAGE3.market.priceStart);
+  assert.equal(s.priceUps, 1);
+  s.producers.workbench = 40;
+  E.tick(s, 5);
+  assert.ok(s.stockN > 0, 'more built than sold');
+});
+
+test('computers built after a chip idea run faster; ones already built keep their speed', () => {
+  const s = stage3();
+  E.click(s); E.tick(s, 60);
+  const one = E.homeWork(s);
   s.bought.eightBit = s.time;
-  assert.ok(Math.abs(E.nextGain(s) - (m.nextLeap + 0.2)) < 1e-9);
+  E.click(s); E.tick(s, 60);
+  assert.ok(Math.abs(E.homeWork(s) - one * 3) < 1e-9, 'a 1971 computer + one twice as fast');
 });
 
-test('launching a next model: from 12% of the design, faster, a fresh wave of buyers, factories retool', () => {
+test('chips: a batch costs money, the price falls over the stage and moves in steps', () => {
   const s = stage3();
-  assert.equal(E.launchBlock(s), 'workbench');
-  E.buyProducer(s, 'workbench');
-  assert.equal(E.launchBlock(s), 'lab');
-  assert.equal(E.launchModel(s), false);
-  while (E.labProgress(s, E.modelAge(s)) < STAGE3.market.minProgress) E.tick(s, 1);
-  E.tick(s, 20);
-  const before = E.modelDemand(s), homes1 = s.homes, ratio = E.labRatio(s), rate = E.getRate(s), cap = E.capacity(s);
-  assert.ok(E.launchModel(s));
-  assert.equal(E.modelOnSale(s), 2);
-  assert.ok(Math.abs(s.models[1].speed - ratio) < 1e-9);
-  assert.equal(s.models[0].homes, homes1);
-  assert.ok(E.modelDemand(s) > before, 'a new model has fresh buyers');
-  assert.equal(E.getRate(s), rate, 'launching changes nothing already in homes');
-  assert.ok(Math.abs(E.capacity(s) - cap * STAGE3.market.retool.floor) < 1e-9, 'factories restart at 25%');
-  E.tick(s, STAGE3.market.retool.next);
-  assert.ok(Math.abs(E.capacity(s) - cap) < 1e-9, 'and are back to full after the retool time');
+  const c0 = E.chipBatchCost(s), n0 = s.chips;
+  assert.ok(E.buyChips(s));
+  assert.equal(s.chips, n0 + Math.min(E.chipBatch(s), Math.floor(STAGE3.startDollars / E.chipPrice(s))));
+  assert.ok(Math.abs(s.dollars - (STAGE3.startDollars - c0)) < 1e-6);
+  const p = E.chipPrice(s);
+  E.tick(s, 0.5);
+  assert.equal(E.chipPrice(s), p, 'no change inside a step');
+  E.tick(s, 600);
+  assert.ok(E.chipPrice(s) < p / 2, 'chips get cheaper');
+  s.dollars = 0;
+  assert.equal(E.buyChips(s), false);
 });
 
-test('programs make every computer of their series faster, old ones included', () => {
+test('adverts cost more each time and bring more buyers', () => {
   const s = stage3();
-  E.buyProducer(s, 'workbench'); E.tick(s, 20);
-  const rate = E.getRate(s);
-  s.series[0].programs = STAGE3.market.programsPerX;          // +1×
-  const homesPart = rate - s.legacyRate;
-  assert.ok(Math.abs(E.getRate(s) - (s.legacyRate + 2 * homesPart)) < 1e-6 * rate);
-  assert.equal(E.programRate(s), 0, 'nobody writes programs before "A language for kits"');
-  s.bought.basic = s.time;
-  assert.ok(E.programRate(s) > 0);
+  s.homes = 10; s.dollars = 1e6;
+  const b = E.buyersAt(s), c = E.advertCost(s);
+  assert.ok(E.buyAdvert(s));
+  assert.ok(E.advertCost(s) > c);
+  assert.ok(Math.abs(E.buyersAt(s) - b * STAGE3.market.adverts.mul) < 1e-9);
 });
 
-test('a new series: needs the new chip, leaps further, starts with no programs (Closed keeps 80%)', () => {
+test('the price war: a rival price that falls; above it, buyers fall away (a loyal share stays)', () => {
   const s = stage3();
-  E.buyProducer(s, 'workbench'); E.tick(s, 5);
-  assert.equal(E.launchBlock(s, 'series'), 'chip');
-  s.bought.cheapChip = s.time; E.tick(s, 1);
-  assert.ok(s.design, 'the design starts by itself');
-  s.series[0].programs = 1200;
-  for (let i = 0; i < 60; i++) E.tick(s, 1);
-  const r = E.labRatio(s, 'series');
-  assert.ok(r > E.labRatio(s, 'next'), 'a bigger leap than the next model');
-  const old = s.series[0].homes;
-  assert.ok(E.launchModel(s, 'series'));
-  assert.equal(E.seriesOnSale(s), 2);
-  assert.equal(s.series[1].programs, 0);
-  assert.ok(Math.abs(s.series[0].homes - old) < 1e-9 && s.series[0].programs >= 1200, 'the old series keeps its programs');
-  assert.ok(s.log.some(e => /none of the old programs run on it/i.test(e.text)));
-  // Closed
-  const c = stage3();
-  E.buyProducer(c, 'workbench'); c.bought.cheapChip = c.time; c.bought.openClosed = c.time; c.choices.openClosed = 'machines';
-  E.tick(c, 1); E.tick(c, 60); c.series[0].programs = 1000;
-  assert.ok(E.launchModel(c, 'series'));
-  assert.ok(Math.abs(c.series[1].programs - 800) < 1e-9);
+  assert.equal(E.rivalPrice(s), null);
+  s.beats.war = s.time;
+  const w = STAGE3.market.war;
+  assert.equal(E.rivalPrice(s), w.start);
+  s.price = w.start;
+  const at = E.buyersAt(s);
+  s.price = w.start * 4;
+  const plain = E.buyersAt(s, s.price) / (w.loyal + (1 - w.loyal) * Math.pow(0.25, w.bite));
+  assert.ok(E.buyersAt(s) < at / 4 && E.buyersAt(s) >= plain * w.loyal - 1e-9);
+  s.time += 1e5;
+  assert.equal(E.rivalPrice(s), w.floor);
 });
 
-test('a better chip moves a young design to it; a killer program goes to the series on sale', () => {
+test('a standing order buys chips before you run out; a sales manager moves the price; a hand change switches him off', () => {
   const s = stage3();
-  E.buyProducer(s, 'workbench'); s.bought.cheapChip = s.time; E.tick(s, 5);
-  const g = s.design.gain;
-  s.bought.chips = s.time; E.tick(s, 1);
-  assert.ok(Math.abs(s.design.gain - (g + 0.6)) < 1e-9);
-  s.dollars = 1e9; s.ops = 1e15; s.revealed.spreadsheet = s.time;
-  assert.ok(E.buyUpgrade(s, 'spreadsheet'));
-  assert.ok(Math.abs(s.series[0].bonus - 0.3) < 1e-9);
+  s.dollars = 1e7; s.producers.workbench = 10; s.chips = 0;
+  s.bought.standing = s.time;
+  E.tick(s, 0.1);
+  assert.ok(s.chips > 0);
+  s.bought.manager = s.time; s.stockN = 0; s.price = 100;
+  E.tick(s, 1.1);
+  assert.ok(s.price > 100, 'buyers waiting: he raises the price');
+  E.changePrice(s, -1);
+  assert.equal(E.autoOn(s, 'price'), false);
+  E.toggleAuto(s, 'price');
+  assert.equal(E.autoOn(s, 'price'), true);
 });
 
-test('the engineers ship a model themselves near the limit', () => {
+test('reactive lines wait until their condition has held, and say what the player did', () => {
   const s = stage3();
-  E.buyProducer(s, 'workbench');
-  for (let i = 0; i < 600 && E.modelOnSale(s) === 1; i++) E.tick(s, 1);
-  assert.equal(E.modelOnSale(s), 2);
-  assert.ok(s.log.some(e => /engineers stop waiting/.test(e.text)));
+  s.stock = [[600, 1]]; s.stockN = 600; s.price = 1e6;
+  E.tick(s, 1);
+  assert.equal(s.beats.full, undefined);
+  for (let i = 0; i < 40; i++) E.tick(s, 1);
+  assert.ok(s.beats.full !== undefined);
 });
 
-test('selling stops at the goal', () => {
+test('after the goal: no new builders, selling goes on, the advert is paid with money', () => {
   const s = stage3();
-  E.buyProducer(s, 'workbench');
   s.lifetime = s.stageStart.lifetime + STAGE3.goal.lifetime;
-  E.buyGoal(s);
-  const h = s.homes;
-  E.tick(s, 10);
-  assert.equal(s.homes, h);
-  assert.equal(E.canLaunch(s), false);
+  assert.ok(E.buyGoal(s));
+  assert.equal(E.buyProducer(s, 'workbench'), false);
+  E.click(s); E.tick(s, 60);
+  assert.ok(s.homes >= 1, 'selling goes on');
+  s.dollars = STAGE3.finale[0].cost; s.ops = 0;
+  assert.ok(E.buyFinale(s));
+  assert.equal(s.dollars, 0);
 });
 
-test('a Stage 3 save round-trips; a v4 save (price tag) becomes Model 1 homes in Series 1', () => {
+test('a Stage 3 save round-trips; an older Stage 3 save starts the new garage with its legacy', () => {
   const s = stage3();
-  E.buyProducer(s, 'workbench'); E.tick(s, 30);
+  for (let i = 0; i < 5; i++) E.click(s);
+  E.tick(s, 30);
   const t = E.deserialize(E.serialize(s));
   assert.equal(t.homes, s.homes);
-  assert.deepEqual(t.models, s.models);
+  assert.deepEqual(t.stock, s.stock);
   assert.equal(E.getRate(t), E.getRate(s));
   const old = JSON.parse(E.serialize(s));
-  old.version = 4; old.price = 1299; delete old.models; delete old.modelAt; delete old.sales;
+  old.version = 6; old.models = [{ speed: 3, homes: 500, series: 0 }]; old.series = [{ homes: 500, programs: 9, bonus: 0 }];
   const u = E.deserialize(JSON.stringify(old));
-  assert.equal(u.price, undefined);
-  assert.equal(u.models.length, 1);
-  assert.equal(u.models[0].homes, s.homes);
-  assert.equal(u.series.length, 1);
-  assert.equal(u.series[0].homes, s.homes);
-  assert.ok(Math.abs(E.getRate(u) - E.getRate(s)) < 1e-6);
+  assert.equal(u.models, undefined);
+  assert.equal(u.stage, 3);
+  assert.equal(u.homes, 0);
+  assert.equal(u.legacyRate, s.legacyRate);
+  assert.equal(u.chips, STAGE3.market.chips.start);
 });
 
 test('Stage 3 data: plain texts, log lines, unique ids, cards in date order', () => {
@@ -453,4 +461,5 @@ test('Stage 3 data: plain texts, log lines, unique ids, cards in date order', ()
   }
   assert.ok(STAGE3.goal.date >= last);
   assert.ok(STAGE3.finale.every(f => f.date >= STAGE3.goal.date));
+  for (const b of STAGE3.beats) { assert.ok(!ids.has(b.id), b.id); ids.add(b.id); assert.ok(b.text.split(' ').length <= 45, b.id); }
 });

@@ -71,15 +71,6 @@
           <div class="producer-head"><span id="legacy-label"></span><span class="legacy-tag">Legacy</span></div>
           <p id="legacy-text"></p>
         </div>
-        <div id="homes-row" class="producer" hidden>
-          <div class="producer-head"><span>Computers in homes</span><span id="homes-owned" class="producer-owned"></span></div>
-          <div id="homes-text">
-            <p id="homes-gen"></p>
-            <div id="series-grid" class="series-grid" hidden></div>
-            <p id="homes-programs" hidden></p>
-            <p id="homes-total"></p>
-          </div>
-        </div>
         <div id="producer-list"></div>
         <p id="team-complete" class="muted-note" hidden></p>
       </section>
@@ -88,26 +79,19 @@
         <p id="market-intro" class="muted-note first"></p>
         <div id="market-seg" class="seg" role="group"></div>
         <p id="sell-status"></p>
-        <div id="models" hidden>
-          <div id="sales-chart" class="chart" aria-hidden="true">
-            <span id="chart-max" class="chart-max"></span>
-            <svg id="chart-svg" viewBox="0 0 120 40" preserveAspectRatio="none"></svg>
-            <span id="chart-capline" class="chart-capline"></span>
-          </div>
-          <p id="supply-nums"></p>
-          <p id="supply-verdict"><b id="verdict-bold"></b> <span id="verdict-fix"></span><span id="retool-fill" class="retool-fill"></span></p>
-          <div id="lab-next" class="lab">
-            <p class="lab-head"><b id="next-head"></b><span id="next-phase"></span></p>
-            <div class="lab-bar"><div id="next-fill" class="lab-fill"></div></div>
-            <button id="next-btn" class="buy-btn" data-action="launch" data-kind="next"></button>
-            <p id="next-note" class="lab-note"></p>
-          </div>
-          <div id="lab-series" class="lab" hidden>
-            <p class="lab-head"><b id="series-head"></b><span id="series-phase"></span></p>
-            <div class="lab-bar"><div id="series-fill" class="lab-fill"></div></div>
-            <button id="series-btn" class="buy-btn" data-action="launch" data-kind="series"></button>
-            <p id="series-note" class="lab-note"></p>
-          </div>
+        <!-- Stage 3: the shop. One row = label, number, the buttons that change it. Every row is there from the
+             first frame (rows that are not in use yet are invisible), so nothing ever moves. -->
+        <div id="shop" class="shop" hidden>
+          <div class="row"><span class="lbl">Warehouse</span><span class="num" id="shop-stock"></span><span class="tag" id="stock-tag"></span></div>
+          <div class="row"><span class="lbl">Price</span><span class="num" id="shop-price"></span>
+            <span class="ctl"><button class="buy-btn small" data-action="price" data-dir="-1" data-repeat="1">Lower</button><button class="buy-btn small" data-action="price" data-dir="1" data-repeat="1">Raise</button><button id="auto-price" class="buy-btn small auto" data-action="auto" data-which="price"></button></span></div>
+          <div class="row"><span class="lbl">Buyers</span><span class="num" id="shop-buyers"></span><span class="sub" id="shop-build"></span></div>
+          <div class="row split" id="chips-row"><span class="lbl">Chips</span><span class="num" id="shop-chips"></span>
+            <span class="ctl"><button id="buy-chips" class="buy-btn small" data-action="chips" data-repeat="1"><span id="chips-label"></span><span id="chips-cost" class="cost dollars"></span></button><button id="auto-chips" class="buy-btn small auto" data-action="auto" data-which="chips"></button></span></div>
+          <div class="row"><span class="lbl">Chip price</span><span class="num" id="chip-price"></span><span class="tag" id="chip-tag"></span></div>
+          <div class="row" id="ads-row"><span class="lbl">Adverts</span><span class="num" id="ads-level"></span>
+            <span class="ctl"><button id="buy-ad" class="buy-btn small" data-action="advert"><span id="ad-label"></span><span id="ad-cost" class="cost dollars"></span></button></span></div>
+          <div class="row" id="rival-row"><span class="lbl">Rival's price</span><span class="num" id="rival-price"></span><span class="sub" id="rival-note"></span></div>
         </div>
         <p id="sell-customers" class="muted-note"></p>
       </section>

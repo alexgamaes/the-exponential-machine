@@ -1,7 +1,8 @@
 # Stage 3 — The Garage (Nov 1971 → Jan 1984): merged design
 
 Lead designer's merge of `design/stage3/01-historian.md`, `02-plot.md`, `03-ux.md`, `04-systems.md`, with the player's
-decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Built, then redesigned twice (§9, §10):** the price tag of §4 became launching models, then series and programs. §1–3 and §5–7 (story, pace, beats) still hold; §4 does not.
+decisions in `stage3/05-decisions.md`. Brief: `stage3/00-brief.md`. **Rebuilt from scratch on Nov 14 (§11, the shop): §11 is
+the source of truth.** §1–10 are history: the price tag (§4), launching models (§9), series and programs (§10).
 
 ## 1. The stage in one paragraph
 You are the Bletchley codebreaker, now about 55. You leave the computing division with a pension, the pencil and the
@@ -157,3 +158,53 @@ The player: "no penalty for releasing a model right when it's available… it's 
 - Switching over (Nov 14, player: "I could barely see this text"): while the factories retool, the supply line turns into
   a solid accent band with a thin bar showing building speed coming back (25% → 100%) and "Building at N% speed". The
   band's box is always there, so nothing moves when it appears.
+
+## 11. Rebuilt from scratch (Nov 14): the shop, closer to Universal Paperclips
+The player: "not very pleased with the latest stage 3 … the UX, the gameplay, the plot … think it from scratch … closer to
+Paperclips: demand, the warehouse items." Brief `stage3/30-restart-brief.md`; proposals `31-game-design.md` (game designer,
+with a prototype), `32-ux.md` (screen), `33-plot.md` (story), `34-strategy-critique.md` (critic). Old versions: tag
+`stage3-series` (series and programs), `stage3-price`.
+
+**The loop.** "Build a computer" (the main button) uses one chip and puts a computer in the **warehouse**. You set the
+**price** (Lower/Raise, tidy steps ~10%, hold to repeat). **Buyers** a second = 1.2 × buyer ideas × 1.25^adverts × Open bonus
+× ($1,000 / price)^0.7, and they take the oldest computers first. Each sale pays the price; the computer goes into a home
+and **adds its speed to yours for good** (300,000 operations a second × the chip ideas bought *before it was built*).
+Unsold computers add nothing. Money buys chips, workbenches ($600 ×1.14ⁿ, 0.5/s), factories ($50,000 ×1.08ⁿ, 6/s) and
+adverts ($2,000 ×2ⁿ, +25% buyers). Operations buy 16 ideas: four chip generations (2×, 2.5×, 3×, 3×), five buyer groups,
+cheaper chips, factories, Open or closed, and two automations (*A standing order* buys chips before you run out;
+*A sales manager* moves the price to keep the warehouse nearly empty; both have an Auto on/off switch, and a price change by
+hand switches the manager off). Goal: 45 trillion operations in total; finale *Air the advert* ($4 M) then *Make a
+computer anyone can use* (28 trillion operations).
+
+**Chips** (the wire): $100 at the start, halving every 230 s, with a slow seeded wobble (±25%) that moves in 4 s steps,
+tagged *Cheap* / *Dear*. One button buys ~10 s of building (rounded 1-2-5), or as much as you can afford, so a player who
+spent everything is never stuck. At 0 chips the row turns into a solid band and the main button reads "No chips".
+
+**Lead decisions in the merge (and why)**
+| Question | Proposals | Decision |
+|---|---|---|
+| Price elasticity | Designer: buyers ∝ 1/price. Critic: then money a second is the same at any price, so "keep the warehouse empty" is the whole answer | **0.7**: a dear price really trades homes (speed) for money (builders, adverts). Overbuilding lowers the price that clears the warehouse (the 1983 crash in miniature). |
+| The twist | Designer: chip shortages (1979, 1981) + glut. Critic: shortages change the finish 0.1%. Plot: the 1982–83 price war | **The price war**, from ~minute 8 (after *Games at home*): a rival price $299 falling 15% every 20 s to $99; above it buyers × (0.2 + 0.8 × (rival/price)³). The money melts; homes stay (the story's turn). Shortages and glut cut. |
+| Open or closed | Designer: Open = buyers grow with homes; Closed = factories ×1.18 | Open: +1% buyers per 1,000 homes ("good if your warehouse fills up"). Closed: factories ×1.2 and chips half price ("good if it is empty"). |
+| Chip batches | Designer: 100 / 500 / 5,000 by cards | ~10 s of building per click (the critic counted 48 chip clicks a minute at minute 8). *Chips by the tray* = chips 30% cheaper. *A standing order* moved to ~minute 5.5. |
+| Screen | UX: one row = label, number, buttons; homes line under the speed; tags not sentences | Adopted. The garage spans both columns under the button (Builders | Ideas below), every row reserved. The homes line replaces the Cray-1 sentence ("9,571 computers in homes. Each new one sold: +1.5 million operations per second."); the Cray moment is a ledger line. |
+| Story | Plot: an arc (want/cost/turn), reactive lines, the secret as the first hurt | Adopted almost whole: 21 main lines, 21 reactive lines (warehouse full, sold out, out of chips, first price raise/cut, a dear price, below chip cost, broke, a million, adverts, benches, homes 100…150,000), variants that read the state (the shop's order of fifty, the clerk's purchase, the boy adverts, the desert). Finale: the advert (money's last job) instead of the classroom. |
+
+**Engine** (`src/engine.js`, the shop section): `market.kind = 'shop'`; state `stock` (batches [count, speed]), `stockN`,
+`chips`, `price`, `ads`, `homeWork`, `built`, `seed`, `autoChips/autoPrice`, `holds`; effects `genMul`, `buyersMul`,
+`chipMul`, `homesBuyers`, `autoChips`, `autoPrice`; `stage.clickBuilds`. Beats gain conditions (`t`, `built`, `beat`, `stock`,
+`soldOut`, `chipsOut`, `chipsBought`, `priceAtLeast/Below`, `belowCost`, `priceUps/Downs`, `moneyAtLeast/Below`, `ads`,
+`rivalBelow`, `homesBelow`), `for: s` (must hold that long), `variants`, `{homes}`/`{stock}` in text, and `kind: 'react'`
+(no own date, at most one every 20 s). Finale items may cost money. Save version 7: a Stage 3 save from v4–v6 restarts the
+new garage with its legacy (the old models cannot be mapped).
+
+**Sim** (`--price smart|fixed|premium:K`, `--chips smart|empty`, `--ads smart|never`; runs are now seeded), average player:
+smart 13.0 (Closed) / 13.3 (Open) min; never touching the price ($800) 15.0 / 13.7; chips only when out 14.2; never
+advertising 20.8 / 17.5; all 12 profiles 12.9–13.3 min, quiet ≤ 25 s, speed never drops, end 7–9×10¹¹ per second,
+~130,000 homes. `npm test`'s lazy run (fixed price, chips only when out) takes 14–16 min, quiet ≤ 61 s.
+
+**Known weak spots, for the next playtest**
+- A fixed price near the sweet spot ($250–400) is almost as good as nudging it (Open forgives most). The price matters
+  most at the start (chips are dear) and in the war.
+- Money piles up late (the bot ends with $1–3 M); the advert finale is its last job.
+- At 1366×768 the garage's last rows (adverts, rival) sit just below the fold.

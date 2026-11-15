@@ -51,7 +51,7 @@ function frame(now) {
 // ---------- input ----------
 function doClick() {
   const v = E.click(s, 1);
-  if (v > 0) floater(v);
+  if (v > 0) floater(v, E.stageData(s).clickBuilds ? ' computer' : '');
 }
 
 // Main button: press = one click; hold = repeat.
@@ -90,10 +90,28 @@ document.addEventListener('keydown', (e) => {
   if (now - lastKeyClick >= 1000 / CONFIG.holdRepeatPerSec) { lastKeyClick = now; doClick(); }
 });
 
+// Small buttons that repeat while held (price, chips): press = once, hold = 6 a second.
+let rpt = null;
+function stopRepeat() { if (rpt) { clearTimeout(rpt.hold); clearInterval(rpt.every); rpt = null; } }
+document.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('[data-repeat]');
+  if (!btn || btn.disabled || e.button !== 0) return;
+  e.preventDefault();
+  stopRepeat();
+  act(btn);
+  rpt = { btn, hold: setTimeout(() => { rpt.every = setInterval(() => { if (!btn.disabled) act(btn); }, 1000 / CONFIG.holdRepeatPerSec); }, 350) };
+});
+for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, stopRepeat);
+document.addEventListener('pointerout', (e) => { if (rpt && e.target.closest('[data-repeat]') === rpt.btn && !rpt.btn.contains(e.relatedTarget)) stopRepeat(); });
+
 // Everything else: delegated clicks on data-action.
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn || btn.disabled) return;
+  if (btn.dataset.repeat && e.detail !== 0) return;   // handled on pointerdown (the keyboard still clicks)
+  act(btn);
+});
+function act(btn) {
   const { action, id, option } = btn.dataset;
   switch (action) {
     case 'buy-producer': E.buyProducer(s, id); break;
@@ -107,7 +125,10 @@ document.addEventListener('click', (e) => {
       mainBtn.focus({ preventScroll: true });
       break;
     case 'sell': E.setMarket(s, Number(btn.dataset.value)); break;
-    case 'launch': if (E.launchModel(s, btn.dataset.kind)) render(s); break;
+    case 'price': E.changePrice(s, Number(btn.dataset.dir)); render(s); break;
+    case 'chips': E.buyChips(s); render(s); break;
+    case 'advert': E.buyAdvert(s); render(s); break;
+    case 'auto': E.toggleAuto(s, btn.dataset.which); render(s); break;
     case 'log-top': document.getElementById('log').scrollTop = 0; break;
     case 'dev-stage':
       s = E.startAtStage(Number(btn.dataset.stage));
@@ -126,7 +147,7 @@ document.addEventListener('click', (e) => {
       }
       break;
   }
-});
+}
 
 
 // ---------- theme: system → light → dark ----------
